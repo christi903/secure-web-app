@@ -79,7 +79,8 @@ const SidebarComponent = () => {
 >
   {!isCollapsed && (
     <Box display="flex" justifyContent="center" alignItems="center" ml="15px">
-      <SecureLogo />
+      <SecureLogo color={colors.greenAccent[500]} />
+
     </Box>
   )}
 </MenuItem>
