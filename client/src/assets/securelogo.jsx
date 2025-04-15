@@ -4,7 +4,14 @@ import './securelogo.css';
 const SecureLogo = ({ color }) => {
   return (
     <div className="logo-container">
-      <span className="secure-text" style={{ color }}>Secure</span>
+      <div className="line-dot-wrapper">
+        <div className="red-line" />
+        <div className="red-dot" />
+      </div>
+
+      <span className="secure-text">
+        secur<span className="e-letter">e</span>
+      </span>
     </div>
   );
 };
