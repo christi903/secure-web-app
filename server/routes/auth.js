@@ -1,6 +1,6 @@
 const express = require('express');
 const admin = require('firebase-admin');
-const pool = require('../db'); // PostgreSQL pool setup (e.g., from pg)
+const pool = require('../config/db.js'); // PostgreSQL pool setup (e.g., from pg)
 const router = express.Router();
 
 // Middleware to verify Firebase token
