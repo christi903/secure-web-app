@@ -74,7 +74,7 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
-
+  
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(
@@ -82,17 +82,43 @@ const Register = () => {
         formData.email,
         formData.password
       );
-      await sendEmailVerification(userCredential.user);
-
+      const user = userCredential.user;
+  
+      await sendEmailVerification(user);
+  
+      // Get Firebase ID token
+      const idToken = await user.getIdToken();
+  
+      // Send user info to your backend
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          role: formData.role,
+        }),
+      });
+  
+      const result = await response.json();
+  
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to store user info');
+      }
+  
       toast.success('Registration successful! Please verify your email before logging in.');
       navigate('/login');
     } catch (error) {
-      console.error('Firebase registration error:', error);
+      console.error('Registration error:', error);
       toast.error(error.message || 'An error occurred during registration');
     } finally {
       setLoading(false);
     }
   };
+  
 
   return (
     <ThemeProvider theme={fixedTheme}>
