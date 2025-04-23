@@ -1,35 +1,40 @@
-const mysql = require('mysql2/promise');
+const pg = require('pg');
 require('dotenv').config();
 
-const createPool = () => {
-  const pool = mysql.createPool({
-    host: process.env.DB_HOST,
+const createClient = () => {
+  const client = new pg.Client({
     user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
+    host: process.env.DB_HOST,
     database: process.env.DB_NAME,
+    password: process.env.DB_PASSWORD,
     port: process.env.DB_PORT,
-    waitForConnections: true,
-    connectionLimit: 20,
-    queueLimit: 0
+    ssl: {
+      rejectUnauthorized: true,
+      ca: process.env.DB_SSL_CA,
+    },
   });
 
-  pool.on('error', (err) => {
-    console.error('Unexpected error on pool', err);
+  client.connect((err) => {
+    if (err) {
+      console.error('Database connection error:', err);
+      throw err;
+    }
   });
 
-  return pool;
+  return client;
 };
-
-const pool = createPool();
 
 module.exports = {
   query: async (text, params) => {
+    const client = createClient();
     try {
-      const [rows] = await pool.execute(text, params);
-      return rows;
+      const res = await client.query(text, params);
+      return res.rows;
     } catch (error) {
       console.error('Database query error:', error);
       throw error;
+    } finally {
+      client.end();
     }
   }
 };
