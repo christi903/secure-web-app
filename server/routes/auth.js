@@ -1,5 +1,5 @@
 const express = require('express');
-const admin = require('firebase-admin');
+const admin = require('../config/firebaseAdmin');
 const pool = require('../config/db.js'); // PostgreSQL pool setup (e.g., from pg)
 const router = express.Router();
 

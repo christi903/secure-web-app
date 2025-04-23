@@ -1,4 +1,6 @@
 -- Select the database
+USE defaultdb;
+
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   firebase_uid TEXT UNIQUE NOT NULL,
