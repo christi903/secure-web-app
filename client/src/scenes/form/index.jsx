@@ -1,59 +1,77 @@
-import { Box, Button, TextField } from "@mui/material";
+import { Box, Button, TextField, MenuItem, Typography, InputLabel, Select, FormControl, InputAdornment, IconButton } from "@mui/material";
 import { Formik } from "formik";
 import * as yup from "yup";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import Header from "../../components/Header";
+import React, { useState } from "react";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
 
 const initialValues = {
   firstName: "",
   lastName: "",
   email: "",
-  contact: "",
-  address1: "",
-  address2: "",
+  countryCode: "+255",
+  phoneNumber: "",
+  role: "",
+  lastPassword: "",
+  newPassword: "",
+  confirmPassword: "",
+  twoFactorAuth: false,
+  language: "",
+  profilePicture: null,
 };
-
-const phoneRegExp =
-  /^(255|0)?(67|68|69|71|73|74|75|76|78|79|65|66|62|61|77|72|63|64|71)[0-9]{7}$/;
 
 const userSchema = yup.object().shape({
   firstName: yup.string().required("required"),
   lastName: yup.string().required("required"),
   email: yup.string().email("Invalid email").required("required"),
-  contact: yup
-    .string()
-    .matches(phoneRegExp, "Phone number is not valid")
-    .required("required"),
-  address1: yup.string().required("required"),
-  address2: yup.string().required("required"),
+  phoneNumber: yup.string().required("required"),
+  role: yup.string().oneOf(["Fraud Analyst", "Customer Support Agent"]).required("required"),
+  newPassword: yup.string().min(6, "Minimum 6 characters"),
+  confirmPassword: yup.string().oneOf([yup.ref("newPassword"), null], "Passwords must match"),
+  language: yup.string().required("required"),
 });
 
-const Form = () => {
+const AccountSettingsForm = () => {
   const isNonMobile = useMediaQuery("(min-width:600px)");
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleFormSubmit = (values) => {
-    console.log(values); // Log form data on submission
+    const formData = new FormData();
+    Object.entries(values).forEach(([key, val]) => {
+      formData.append(key, val);
+    });
+    console.log("Form submitted", values);
   };
+
+  const togglePasswordVisibility = () => setShowPassword(!showPassword);
+
+  const countryCodes = [
+    { code: "+255", label: "Tanzania 🇹🇿" },
+    { code: "+254", label: "Kenya 🇰🇪" },
+    { code: "+256", label: "Uganda 🇺🇬" },
+    { code: "+250", label: "Rwanda 🇷🇼" },
+    { code: "+251", label: "Ethiopia 🇪🇹" },
+  ];
 
   return (
     <Box m="20px">
-      <Header title="CREATE USER" subtitle="Create a New User Profile" />
+      <Header title="ACCOUNT SETTINGS" subtitle="Manage your profile and preferences" />
 
       <Formik
         onSubmit={handleFormSubmit}
         initialValues={initialValues}
         validationSchema={userSchema}
       >
-        {({ values, errors, touched, handleBlur, handleChange, handleSubmit }) => (
+        {({ values, errors, touched, handleBlur, handleChange, handleSubmit, setFieldValue }) => (
           <form onSubmit={handleSubmit}>
             <Box
               display="grid"
               gap="30px"
               gridTemplateColumns="repeat(4, minmax(0, 1fr))"
-              sx={{
-                "& > div": { gridColumn: isNonMobile ? undefined : "span 4" },
-              }}
+              sx={{ "& > div": { gridColumn: isNonMobile ? undefined : "span 4" } }}
             >
+              {/* Profile Information */}
               <TextField
                 fullWidth
                 variant="filled"
@@ -93,51 +111,145 @@ const Form = () => {
                 helperText={touched.email && errors.email}
                 sx={{ gridColumn: "span 4" }}
               />
+
+              <FormControl fullWidth variant="filled" sx={{ gridColumn: "span 2" }}>
+                <InputLabel>Country Code</InputLabel>
+                <Select
+                  name="countryCode"
+                  value={values.countryCode}
+                  onChange={handleChange}
+                >
+                  {countryCodes.map((c) => (
+                    <MenuItem key={c.code} value={c.code}>{c.label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
               <TextField
                 fullWidth
                 variant="filled"
                 type="text"
-                label="Contact"
+                label="Phone Number"
                 onBlur={handleBlur}
                 onChange={handleChange}
-                value={values.contact}
-                name="contact"
-                error={!!touched.contact && !!errors.contact}
-                helperText={touched.contact && errors.contact}
+                value={values.phoneNumber}
+                name="phoneNumber"
+                error={!!touched.phoneNumber && !!errors.phoneNumber}
+                helperText={touched.phoneNumber && errors.phoneNumber}
+                sx={{ gridColumn: "span 2" }}
+              />
+
+              <FormControl fullWidth variant="filled" sx={{ gridColumn: "span 4" }}>
+                <InputLabel>Role</InputLabel>
+                <Select
+                  name="role"
+                  value={values.role}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  error={!!touched.role && !!errors.role}
+                >
+                  <MenuItem value="Fraud Analyst">Fraud Analyst</MenuItem>
+                  <MenuItem value="Customer Support Agent">Customer Support Agent</MenuItem>
+                </Select>
+              </FormControl>
+
+              <Box sx={{ gridColumn: "span 4" }}>
+                <Typography gutterBottom>Upload Profile Picture</Typography>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => setFieldValue("profilePicture", event.currentTarget.files[0])}
+                />
+              </Box>
+
+              {/* Security Settings */}
+              <TextField
+                fullWidth
+                variant="filled"
+                type={showPassword ? "text" : "password"}
+                label="Current Password"
+                onBlur={handleBlur}
+                onChange={handleChange}
+                value={values.lastPassword}
+                name="lastPassword"
                 sx={{ gridColumn: "span 4" }}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={togglePasswordVisibility} edge="end">
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  )
+                }}
               />
               <TextField
                 fullWidth
                 variant="filled"
-                type="text"
-                label="Address 1"
+                type={showPassword ? "text" : "password"}
+                label="New Password"
                 onBlur={handleBlur}
                 onChange={handleChange}
-                value={values.address1}
-                name="address1"
-                error={!!touched.address1 && !!errors.address1}
-                helperText={touched.address1 && errors.address1}
-                sx={{ gridColumn: "span 4" }}
+                value={values.newPassword}
+                name="newPassword"
+                error={!!touched.newPassword && !!errors.newPassword}
+                helperText={touched.newPassword && errors.newPassword}
+                sx={{ gridColumn: "span 2" }}
               />
               <TextField
                 fullWidth
                 variant="filled"
-                type="text"
-                label="Address 2"
+                type={showPassword ? "text" : "password"}
+                label="Confirm New Password"
                 onBlur={handleBlur}
                 onChange={handleChange}
-                value={values.address2}
-                name="address2"
-                error={!!touched.address2 && !!errors.address2}
-                helperText={touched.address2 && errors.address2}
-                sx={{ gridColumn: "span 4" }}
+                value={values.confirmPassword}
+                name="confirmPassword"
+                error={!!touched.confirmPassword && !!errors.confirmPassword}
+                helperText={touched.confirmPassword && errors.confirmPassword}
+                sx={{ gridColumn: "span 2" }}
               />
+
+              <FormControl fullWidth variant="filled" sx={{ gridColumn: "span 4" }}>
+                <InputLabel>Two-Factor Authentication</InputLabel>
+                <Select
+                  name="twoFactorAuth"
+                  value={values.twoFactorAuth}
+                  onChange={handleChange}
+                >
+                  <MenuItem value={false}>Disabled</MenuItem>
+                  <MenuItem value={true}>Enabled</MenuItem>
+                </Select>
+              </FormControl>
+
+              {/* System Preferences */}
+              <FormControl fullWidth variant="filled" sx={{ gridColumn: "span 4" }}>
+                <InputLabel>Language</InputLabel>
+                <Select
+                  name="language"
+                  value={values.language}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  error={!!touched.language && !!errors.language}
+                >
+                  <MenuItem value="en">English</MenuItem>
+                  <MenuItem value="sw">Swahili</MenuItem>
+                </Select>
+              </FormControl>
+
+              {/* Account Management */}
+              <Box gridColumn="span 4">
+                <Typography variant="h6" color="error" gutterBottom>
+                  Danger Zone
+                </Typography>
+                <Button variant="contained" color="error">
+                  Delete Account
+                </Button>
+              </Box>
             </Box>
 
-            {/* ===== SUBMIT BUTTON ===== */}
             <Box display="flex" justifyContent="end" mt="20px">
               <Button type="submit" color="secondary" variant="contained">
-                Create New User
+                Save Settings
               </Button>
             </Box>
           </form>
@@ -147,4 +259,4 @@ const Form = () => {
   );
 };
 
-export default Form;
+export default AccountSettingsForm;

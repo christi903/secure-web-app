@@ -70,8 +70,19 @@ const TransactionHistory = () => {
         m="40px 0 0 0"
         height="75vh"
         sx={{
-          "& .MuiDataGrid-columnHeaders": {
+         '& .MuiDataGrid-columnHeaders': {
             backgroundColor: colors.blueAccent[700],
+            color: colors.grey[100],
+            fontSize: '16px',
+          },
+          '& .MuiDataGrid-columnHeaderTitle': {
+            fontWeight: 'bold',
+          },
+          '& .MuiDataGrid-columnHeader': {
+            backgroundColor: colors.blueAccent[700],
+            '&:focus, &:focus-within': {
+              outline: 'none !important',
+            },
           },
           "& .MuiDataGrid-virtualScroller": {
             backgroundColor: colors.primary[400],
