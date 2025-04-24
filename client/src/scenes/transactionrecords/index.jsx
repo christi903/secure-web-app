@@ -1,16 +1,64 @@
-import { Box, Typography, useTheme } from "@mui/material";
+import {
+  Box,
+  Typography,
+  useTheme,
+  Paper,
+  Chip,
+  Button,
+} from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import { tokens } from "../../theme";
 import Header from "../../components/Header";
+import { useNavigate } from "react-router-dom";
+
+// Icons for transaction types
+import PaymentIcon from "@mui/icons-material/Payment";
+import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
+import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
+import AutorenewIcon from "@mui/icons-material/Autorenew";
+import ReplayIcon from "@mui/icons-material/Replay";
 
 const TransactionHistory = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
+  const navigate = useNavigate();
 
   const columns = [
     { field: "date", headerName: "Date/Time", flex: 1 },
     { field: "transactionId", headerName: "Transaction ID", flex: 1 },
-    { field: "type", headerName: "Type", flex: 1 },
+    {
+      field: "type",
+      headerName: "Type",
+      flex: 1,
+      renderCell: ({ row: { type } }) => {
+        let icon;
+        switch (type) {
+          case "Payment":
+            icon = <PaymentIcon fontSize="small" sx={{ mr: 1 }} />;
+            break;
+          case "Deposit":
+            icon = <AccountBalanceWalletIcon fontSize="small" sx={{ mr: 1 }} />;
+            break;
+          case "Withdrawal":
+            icon = <AttachMoneyIcon fontSize="small" sx={{ mr: 1 }} />;
+            break;
+          case "Transfer":
+            icon = <AutorenewIcon fontSize="small" sx={{ mr: 1 }} />;
+            break;
+          case "Refund":
+            icon = <ReplayIcon fontSize="small" sx={{ mr: 1 }} />;
+            break;
+          default:
+            icon = null;
+        }
+        return (
+          <Box sx={{ display: "flex", alignItems: "center" }}>
+            {icon}
+            <Typography variant="body2">{type}</Typography>
+          </Box>
+        );
+      },
+    },
     { field: "amount", headerName: "Amount ($)", flex: 1 },
     {
       field: "status",
@@ -20,21 +68,21 @@ const TransactionHistory = () => {
         let color;
         switch (status) {
           case "Completed":
-            color = "green";
+            color = "success";
             break;
           case "Pending":
-            color = "orange";
+            color = "warning";
             break;
           case "Failed":
-            color = "red";
+            color = "error";
             break;
           case "Confirmed":
-            color = "goldenrod";
+            color = "info";
             break;
           default:
-            color = "gray";
+            color = "default";
         }
-        return <Typography color={color}>{status}</Typography>;
+        return <Chip label={status} color={color} variant="outlined" />;
       },
     },
     { field: "description", headerName: "Description", flex: 2 },
@@ -51,60 +99,55 @@ const TransactionHistory = () => {
     { id: 8, date: "Mar 23, 2025, 05:45 PM", transactionId: "TRX-12352", type: "Transfer", amount: 300.0, status: "Confirmed", description: "Transfer to business account" },
     { id: 9, date: "Mar 22, 2025, 02:00 PM", transactionId: "TRX-12353", type: "Refund", amount: 50.0, status: "Completed", description: "Service refund" },
     { id: 10, date: "Mar 21, 2025, 08:20 AM", transactionId: "TRX-12354", type: "Payment", amount: 29.99, status: "Failed", description: "Subscription failed" },
-    { id: 11, date: "Mar 20, 2025, 01:00 PM", transactionId: "TRX-12355", type: "Deposit", amount: 450.0, status: "Completed", description: "Bank deposit" },
-    { id: 12, date: "Mar 19, 2025, 10:15 AM", transactionId: "TRX-12356", type: "Transfer", amount: 75.0, status: "Confirmed", description: "Peer transfer" },
-    { id: 13, date: "Mar 18, 2025, 03:00 PM", transactionId: "TRX-12357", type: "Withdrawal", amount: 120.0, status: "Pending", description: "ATM withdrawal" },
-    { id: 14, date: "Mar 17, 2025, 09:45 AM", transactionId: "TRX-12358", type: "Payment", amount: 59.0, status: "Completed", description: "Bill payment" },
-    { id: 15, date: "Mar 16, 2025, 06:10 PM", transactionId: "TRX-12359", type: "Refund", amount: 80.0, status: "Completed", description: "Returned item" },
-    { id: 16, date: "Mar 15, 2025, 12:00 PM", transactionId: "TRX-12360", type: "Deposit", amount: 350.0, status: "Completed", description: "Mobile deposit" },
-    { id: 17, date: "Mar 14, 2025, 11:00 AM", transactionId: "TRX-12361", type: "Payment", amount: 65.0, status: "Failed", description: "Online subscription" },
-    { id: 18, date: "Mar 13, 2025, 02:30 PM", transactionId: "TRX-12362", type: "Transfer", amount: 210.0, status: "Confirmed", description: "To personal account" },
-    { id: 19, date: "Mar 12, 2025, 09:00 AM", transactionId: "TRX-12363", type: "Refund", amount: 33.0, status: "Completed", description: "Excess charge refund" },
-    { id: 20, date: "Mar 11, 2025, 04:45 PM", transactionId: "TRX-12364", type: "Withdrawal", amount: 190.0, status: "Pending", description: "Bank ATM withdrawal" },
   ];
 
   return (
     <Box m="20px">
       <Header title="TRANSACTION HISTORY" subtitle="List of recent financial transactions" />
-      <Box
-        m="40px 0 0 0"
-        height="75vh"
-        sx={{
-         '& .MuiDataGrid-columnHeaders': {
-            backgroundColor: colors.blueAccent[700],
-            color: colors.grey[100],
-            fontSize: '16px',
-          },
-          '& .MuiDataGrid-columnHeaderTitle': {
-            fontWeight: 'bold',
-          },
-          '& .MuiDataGrid-columnHeader': {
-            backgroundColor: colors.blueAccent[700],
-            '&:focus, &:focus-within': {
-              outline: 'none !important',
-            },
-          },
-          "& .MuiDataGrid-virtualScroller": {
-            backgroundColor: colors.primary[400],
-          },
-          "& .MuiDataGrid-footerContainer": {
-            backgroundColor: colors.blueAccent[700],
-            minHeight: "40px",
-            borderTop: "1px solid #ccc",
-            alignItems: "center",
-          },
-          "& .MuiTablePagination-root": {
-            fontSize: "0.8rem",
-          },
-        }}
-      >
+
+      {/* Custom Toolbar */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mt={3} mb={1}>
+        <Typography variant="h6">Total Transactions: {transactionRecords.length}</Typography>
+        <Box>
+          <Button variant="outlined" sx={{ mr: 2 }}>Export</Button>
+          <Button variant="contained">Filter</Button>
+        </Box>
+      </Box>
+
+      <Paper elevation={3} sx={{ p: 2, height: "75vh" }}>
         <DataGrid
           rows={transactionRecords}
           columns={columns}
           pageSize={100}
           rowsPerPageOptions={[100]}
+          onRowClick={(params) =>
+            navigate(`/transactions/${params.row.transactionId}`, { state: params.row })
+          }
+          sx={{
+            '& .MuiDataGrid-columnHeaders': {
+              backgroundColor: colors.blueAccent[700],
+              color: colors.grey[100],
+              fontSize: '16px',
+            },
+            '& .MuiDataGrid-columnHeaderTitle': {
+              fontWeight: 'bold',
+            },
+            '& .MuiDataGrid-row:hover': {
+              backgroundColor: colors.primary[600],
+              cursor: "pointer",
+            },
+            "& .MuiDataGrid-footerContainer": {
+              backgroundColor: colors.blueAccent[700],
+              borderTop: "1px solid #ccc",
+              minHeight: "40px",
+              alignItems: "center",
+            },
+            "& .MuiTablePagination-root": {
+              fontSize: "0.8rem",
+            },
+          }}
         />
-      </Box>
+      </Paper>
     </Box>
   );
 };
