@@ -6,7 +6,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { getAuth, signOut, deleteUser, updateProfile } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../../firebase'; // adjust path
+import { doc, updateDoc } from 'firebase/firestore';
+import { storage, db } from '../../firebase';
 import axios from 'axios';
 import { PhotoCamera } from '@mui/icons-material';
 
@@ -26,7 +27,6 @@ export default function AccountSettings() {
 
   useEffect(() => {
     if (user) {
-      // Fetch user details from backend
       axios.get(`/api/user/${user.uid}`).then(res => {
         const { first_name, last_name, username, email, role, profile_url } = res.data;
         setFirstName(first_name);
@@ -46,7 +46,9 @@ export default function AccountSettings() {
   };
 
   const handleSave = async () => {
+    if (!user) return;
     setLoading(true);
+
     try {
       let downloadURL = previewURL;
 
@@ -56,11 +58,20 @@ export default function AccountSettings() {
         downloadURL = await getDownloadURL(imageRef);
       }
 
-      await updateProfile(user, { displayName: `${firstName} ${lastName}`, photoURL: downloadURL });
+      await updateProfile(user, {
+        photoURL: downloadURL,
+      });
 
+      // Update in your backend
       await axios.put(`/api/user/${user.uid}`, {
         first_name: firstName,
         last_name: lastName,
+        role: role,
+        profile_url: downloadURL,
+      });
+
+      // Update in Firestore
+      await updateDoc(doc(db, 'users', user.uid), {
         profile_url: downloadURL,
       });
 
@@ -69,6 +80,7 @@ export default function AccountSettings() {
       console.error('Error saving settings:', error);
       alert('Failed to save settings.');
     }
+
     setLoading(false);
   };
 
@@ -94,10 +106,7 @@ export default function AccountSettings() {
       <Typography variant="h5" gutterBottom>Account Settings</Typography>
 
       <Stack direction="row" spacing={2} alignItems="center" mb={3}>
-        <Avatar
-          src={previewURL}
-          sx={{ width: 80, height: 80 }}
-        />
+        <Avatar src={previewURL} sx={{ width: 80, height: 80 }} />
         <label htmlFor="upload-photo">
           <input
             type="file"
@@ -115,24 +124,43 @@ export default function AccountSettings() {
       <Grid container spacing={2}>
         <Grid item xs={6}>
           <TextField
-            fullWidth label="First Name" value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
+            fullWidth
+            label="First Name"
+            value={firstName}
+            InputProps={{ readOnly: true }}
           />
         </Grid>
         <Grid item xs={6}>
           <TextField
-            fullWidth label="Last Name" value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
+            fullWidth
+            label="Last Name"
+            value={lastName}
+            InputProps={{ readOnly: true }}
           />
         </Grid>
         <Grid item xs={12}>
-          <TextField fullWidth label="Username" value={username} InputProps={{ readOnly: true }} />
+          <TextField
+            fullWidth
+            label="Username"
+            value={username}
+            InputProps={{ readOnly: true }}
+          />
         </Grid>
         <Grid item xs={12}>
-          <TextField fullWidth label="Email" value={email} InputProps={{ readOnly: true }} />
+          <TextField
+            fullWidth
+            label="Email"
+            value={email}
+            InputProps={{ readOnly: true }}
+          />
         </Grid>
         <Grid item xs={12}>
-          <TextField fullWidth label="Role" value={role} InputProps={{ readOnly: true }} />
+          <TextField
+            fullWidth
+            label="Role"
+            value={role}
+            InputProps={{ readOnly: true }}
+          />
         </Grid>
       </Grid>
 
@@ -150,5 +178,3 @@ export default function AccountSettings() {
     </Box>
   );
 }
-
-// Remove duplicate default export since it's already exported at component declaration

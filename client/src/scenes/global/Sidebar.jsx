@@ -2,7 +2,12 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ProSidebar, Menu, MenuItem } from "react-pro-sidebar";
 import "react-pro-sidebar/dist/css/styles.css";
-import { Box, IconButton, Typography, useTheme } from "@mui/material";
+import {
+  Box,
+  IconButton,
+  Typography,
+  useTheme,
+} from "@mui/material";
 import { tokens } from "../../theme";
 import MenuOutlinedIcon from "@mui/icons-material/MenuOutlined";
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
@@ -19,6 +24,8 @@ import MapOutlinedIcon from "@mui/icons-material/MapOutlined";
 import SecureLogo from "../../assets/securelogo";
 import { auth } from "../../firebase";
 import { getUserProfile } from "../../utils";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getFirestore, doc, updateDoc } from "firebase/firestore";
 
 const Item = ({ title, to, icon, selected, setSelected }) => {
   const theme = useTheme();
@@ -50,14 +57,43 @@ const SidebarComponent = () => {
 
   useEffect(() => {
     const fetchUser = async () => {
-      const userData = await getUserProfile(auth.currentUser.uid);
-      setUser(userData);
+      try {
+        const userData = await getUserProfile(auth.currentUser.uid);
+        setUser(userData);
+      } catch (error) {
+        console.error("Failed to fetch user:", error);
+      }
     };
 
     if (auth.currentUser) {
       fetchUser();
     }
   }, []);
+
+  const handleProfilePictureUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !auth.currentUser) return;
+
+    const storage = getStorage();
+    const storageRef = ref(storage, `profilePictures/${auth.currentUser.uid}`);
+
+    try {
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // Update UI immediately
+      setUser((prev) => ({ ...prev, profilePictureUrl: downloadURL }));
+
+      // Also store in Firestore
+      const db = getFirestore();
+      const userRef = doc(db, "users", auth.currentUser.uid);
+      await updateDoc(userRef, {
+        profilePictureUrl: downloadURL,
+      });
+    } catch (error) {
+      console.error("Profile picture upload failed:", error);
+    }
+  };
 
   return (
     <Box
@@ -85,7 +121,7 @@ const SidebarComponent = () => {
     >
       <ProSidebar collapsed={isCollapsed} collapsedWidth="80px" width="250px">
         <Menu>
-          {/* LOGO AND TOGGLE ICON */}
+          {/* Toggle & Logo */}
           <MenuItem
             icon={isCollapsed ? <MenuOutlinedIcon /> : undefined}
             style={{ margin: "10px 0 20px 0", color: colors.grey[100] }}
@@ -101,20 +137,28 @@ const SidebarComponent = () => {
             )}
           </MenuItem>
 
-          {/* USER PROFILE SECTION */}
+          {/* User Profile */}
           {!isCollapsed && user && (
             <Box mb="25px" display="flex" flexDirection="column" alignItems="center">
-              <img
-                alt="profile-user"
-                width="100px"
-                height="100px"
-                src={user.profilePictureUrl || "/assets/user.jpg"}
-                style={{
-                  cursor: "pointer",
-                  borderRadius: "50%",
-                  objectFit: "cover",
-                }}
-              />
+              <label htmlFor="profile-upload" style={{ cursor: "pointer" }}>
+                <img
+                  alt="profile-user"
+                  width="100px"
+                  height="100px"
+                  src={user.profilePictureUrl || "/assets/user.jpg"}
+                  style={{
+                    borderRadius: "50%",
+                    objectFit: "cover",
+                  }}
+                />
+                <input
+                  id="profile-upload"
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={handleProfilePictureUpload}
+                />
+              </label>
               <Box textAlign="center" mt={2}>
                 <Typography
                   variant="h4"
@@ -135,7 +179,7 @@ const SidebarComponent = () => {
             </Box>
           )}
 
-          {/* MENU ITEMS */}
+          {/* Menu Items */}
           <Box paddingLeft={isCollapsed ? undefined : "10px"}>
             <Item title="Dashboard" to="/" icon={<HomeOutlinedIcon />} selected={selected} setSelected={setSelected} />
 
