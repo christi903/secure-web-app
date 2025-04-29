@@ -1,262 +1,154 @@
-import { Box, Button, TextField, MenuItem, Typography, InputLabel, Select, FormControl, InputAdornment, IconButton } from "@mui/material";
-import { Formik } from "formik";
-import * as yup from "yup";
-import useMediaQuery from "@mui/material/useMediaQuery";
-import Header from "../../components/Header";
-import React, { useState } from "react";
-import { Visibility, VisibilityOff } from "@mui/icons-material";
+import React, { useEffect, useState } from 'react';
+import {
+  Box, Button, TextField, Typography, Avatar, Grid,
+  Stack, IconButton, CircularProgress
+} from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import { getAuth, signOut, deleteUser, updateProfile } from 'firebase/auth';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../../firebase'; // adjust path
+import axios from 'axios';
+import { PhotoCamera } from '@mui/icons-material';
 
-const initialValues = {
-  firstName: "",
-  lastName: "",
-  email: "",
-  countryCode: "+255",
-  phoneNumber: "",
-  role: "",
-  lastPassword: "",
-  newPassword: "",
-  confirmPassword: "",
-  twoFactorAuth: false,
-  language: "",
-  profilePicture: null,
-};
+export default function AccountSettings() {
+  const auth = getAuth();
+  const user = auth.currentUser;
+  const navigate = useNavigate();
 
-const userSchema = yup.object().shape({
-  firstName: yup.string().required("required"),
-  lastName: yup.string().required("required"),
-  email: yup.string().email("Invalid email").required("required"),
-  phoneNumber: yup.string().required("required"),
-  role: yup.string().oneOf(["Fraud Analyst", "Customer Support Agent"]).required("required"),
-  newPassword: yup.string().min(6, "Minimum 6 characters"),
-  confirmPassword: yup.string().oneOf([yup.ref("newPassword"), null], "Passwords must match"),
-  language: yup.string().required("required"),
-});
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState('');
+  const [profileImage, setProfileImage] = useState(null);
+  const [previewURL, setPreviewURL] = useState('');
+  const [loading, setLoading] = useState(false);
 
-const AccountSettingsForm = () => {
-  const isNonMobile = useMediaQuery("(min-width:600px)");
-  const [showPassword, setShowPassword] = useState(false);
+  useEffect(() => {
+    if (user) {
+      // Fetch user details from backend
+      axios.get(`/api/user/${user.uid}`).then(res => {
+        const { first_name, last_name, username, email, role, profile_url } = res.data;
+        setFirstName(first_name);
+        setLastName(last_name);
+        setUsername(username);
+        setEmail(email);
+        setRole(role);
+        setPreviewURL(profile_url);
+      });
+    }
+  }, [user]);
 
-  const handleFormSubmit = (values) => {
-    const formData = new FormData();
-    Object.entries(values).forEach(([key, val]) => {
-      formData.append(key, val);
-    });
-    console.log("Form submitted", values);
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    setProfileImage(file);
+    if (file) setPreviewURL(URL.createObjectURL(file));
   };
 
-  const togglePasswordVisibility = () => setShowPassword(!showPassword);
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      let downloadURL = previewURL;
 
-  const countryCodes = [
-    { code: "+255", label: "Tanzania 🇹🇿" },
-    { code: "+254", label: "Kenya 🇰🇪" },
-    { code: "+256", label: "Uganda 🇺🇬" },
-    { code: "+250", label: "Rwanda 🇷🇼" },
-    { code: "+251", label: "Ethiopia 🇪🇹" },
-  ];
+      if (profileImage) {
+        const imageRef = ref(storage, `profiles/${user.uid}`);
+        await uploadBytes(imageRef, profileImage);
+        downloadURL = await getDownloadURL(imageRef);
+      }
+
+      await updateProfile(user, { displayName: `${firstName} ${lastName}`, photoURL: downloadURL });
+
+      await axios.put(`/api/user/${user.uid}`, {
+        first_name: firstName,
+        last_name: lastName,
+        profile_url: downloadURL,
+      });
+
+      alert('Settings saved successfully!');
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      alert('Failed to save settings.');
+    }
+    setLoading(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm('Are you sure you want to delete your account? This cannot be undone.')) return;
+    try {
+      await axios.delete(`/api/user/${user.uid}`);
+      await deleteUser(user);
+      navigate('/login');
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      alert('Failed to delete account.');
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    await signOut(auth);
+    navigate('/forgot-password');
+  };
 
   return (
-    <Box m="20px">
-      <Header title="ACCOUNT SETTINGS" subtitle="Manage your profile and preferences" />
+    <Box maxWidth="md" mx="auto" p={3}>
+      <Typography variant="h5" gutterBottom>Account Settings</Typography>
 
-      <Formik
-        onSubmit={handleFormSubmit}
-        initialValues={initialValues}
-        validationSchema={userSchema}
-      >
-        {({ values, errors, touched, handleBlur, handleChange, handleSubmit, setFieldValue }) => (
-          <form onSubmit={handleSubmit}>
-            <Box
-              display="grid"
-              gap="30px"
-              gridTemplateColumns="repeat(4, minmax(0, 1fr))"
-              sx={{ "& > div": { gridColumn: isNonMobile ? undefined : "span 4" } }}
-            >
-              {/* Profile Information */}
-              <TextField
-                fullWidth
-                variant="filled"
-                type="text"
-                label="First Name"
-                onBlur={handleBlur}
-                onChange={handleChange}
-                value={values.firstName}
-                name="firstName"
-                error={!!touched.firstName && !!errors.firstName}
-                helperText={touched.firstName && errors.firstName}
-                sx={{ gridColumn: "span 2" }}
-              />
-              <TextField
-                fullWidth
-                variant="filled"
-                type="text"
-                label="Last Name"
-                onBlur={handleBlur}
-                onChange={handleChange}
-                value={values.lastName}
-                name="lastName"
-                error={!!touched.lastName && !!errors.lastName}
-                helperText={touched.lastName && errors.lastName}
-                sx={{ gridColumn: "span 2" }}
-              />
-              <TextField
-                fullWidth
-                variant="filled"
-                type="text"
-                label="Email"
-                onBlur={handleBlur}
-                onChange={handleChange}
-                value={values.email}
-                name="email"
-                error={!!touched.email && !!errors.email}
-                helperText={touched.email && errors.email}
-                sx={{ gridColumn: "span 4" }}
-              />
+      <Stack direction="row" spacing={2} alignItems="center" mb={3}>
+        <Avatar
+          src={previewURL}
+          sx={{ width: 80, height: 80 }}
+        />
+        <label htmlFor="upload-photo">
+          <input
+            type="file"
+            accept="image/*"
+            id="upload-photo"
+            style={{ display: 'none' }}
+            onChange={handleImageChange}
+          />
+          <IconButton color="primary" component="span">
+            <PhotoCamera />
+          </IconButton>
+        </label>
+      </Stack>
 
-              <FormControl fullWidth variant="filled" sx={{ gridColumn: "span 2" }}>
-                <InputLabel>Country Code</InputLabel>
-                <Select
-                  name="countryCode"
-                  value={values.countryCode}
-                  onChange={handleChange}
-                >
-                  {countryCodes.map((c) => (
-                    <MenuItem key={c.code} value={c.code}>{c.label}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <TextField
-                fullWidth
-                variant="filled"
-                type="text"
-                label="Phone Number"
-                onBlur={handleBlur}
-                onChange={handleChange}
-                value={values.phoneNumber}
-                name="phoneNumber"
-                error={!!touched.phoneNumber && !!errors.phoneNumber}
-                helperText={touched.phoneNumber && errors.phoneNumber}
-                sx={{ gridColumn: "span 2" }}
-              />
+      <Grid container spacing={2}>
+        <Grid item xs={6}>
+          <TextField
+            fullWidth label="First Name" value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+          />
+        </Grid>
+        <Grid item xs={6}>
+          <TextField
+            fullWidth label="Last Name" value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+          />
+        </Grid>
+        <Grid item xs={12}>
+          <TextField fullWidth label="Username" value={username} InputProps={{ readOnly: true }} />
+        </Grid>
+        <Grid item xs={12}>
+          <TextField fullWidth label="Email" value={email} InputProps={{ readOnly: true }} />
+        </Grid>
+        <Grid item xs={12}>
+          <TextField fullWidth label="Role" value={role} InputProps={{ readOnly: true }} />
+        </Grid>
+      </Grid>
 
-              <FormControl fullWidth variant="filled" sx={{ gridColumn: "span 4" }}>
-                <InputLabel>Role</InputLabel>
-                <Select
-                  name="role"
-                  value={values.role}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  error={!!touched.role && !!errors.role}
-                >
-                  <MenuItem value="Fraud Analyst">Fraud Analyst</MenuItem>
-                  <MenuItem value="Customer Support Agent">Customer Support Agent</MenuItem>
-                </Select>
-              </FormControl>
-
-              <Box sx={{ gridColumn: "span 4" }}>
-                <Typography gutterBottom>Upload Profile Picture</Typography>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => setFieldValue("profilePicture", event.currentTarget.files[0])}
-                />
-              </Box>
-
-              {/* Security Settings */}
-              <TextField
-                fullWidth
-                variant="filled"
-                type={showPassword ? "text" : "password"}
-                label="Current Password"
-                onBlur={handleBlur}
-                onChange={handleChange}
-                value={values.lastPassword}
-                name="lastPassword"
-                sx={{ gridColumn: "span 4" }}
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton onClick={togglePasswordVisibility} edge="end">
-                        {showPassword ? <VisibilityOff /> : <Visibility />}
-                      </IconButton>
-                    </InputAdornment>
-                  )
-                }}
-              />
-              <TextField
-                fullWidth
-                variant="filled"
-                type={showPassword ? "text" : "password"}
-                label="New Password"
-                onBlur={handleBlur}
-                onChange={handleChange}
-                value={values.newPassword}
-                name="newPassword"
-                error={!!touched.newPassword && !!errors.newPassword}
-                helperText={touched.newPassword && errors.newPassword}
-                sx={{ gridColumn: "span 2" }}
-              />
-              <TextField
-                fullWidth
-                variant="filled"
-                type={showPassword ? "text" : "password"}
-                label="Confirm New Password"
-                onBlur={handleBlur}
-                onChange={handleChange}
-                value={values.confirmPassword}
-                name="confirmPassword"
-                error={!!touched.confirmPassword && !!errors.confirmPassword}
-                helperText={touched.confirmPassword && errors.confirmPassword}
-                sx={{ gridColumn: "span 2" }}
-              />
-
-              <FormControl fullWidth variant="filled" sx={{ gridColumn: "span 4" }}>
-                <InputLabel>Two-Factor Authentication</InputLabel>
-                <Select
-                  name="twoFactorAuth"
-                  value={values.twoFactorAuth}
-                  onChange={handleChange}
-                >
-                  <MenuItem value={false}>Disabled</MenuItem>
-                  <MenuItem value={true}>Enabled</MenuItem>
-                </Select>
-              </FormControl>
-
-              {/* System Preferences */}
-              <FormControl fullWidth variant="filled" sx={{ gridColumn: "span 4" }}>
-                <InputLabel>Language</InputLabel>
-                <Select
-                  name="language"
-                  value={values.language}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  error={!!touched.language && !!errors.language}
-                >
-                  <MenuItem value="en">English</MenuItem>
-                  <MenuItem value="sw">Swahili</MenuItem>
-                </Select>
-              </FormControl>
-
-              {/* Account Management */}
-              <Box gridColumn="span 4">
-                <Typography variant="h6" color="error" gutterBottom>
-                  Danger Zone
-                </Typography>
-                <Button variant="contained" color="error">
-                  Delete Account
-                </Button>
-              </Box>
-            </Box>
-
-            <Box display="flex" justifyContent="end" mt="20px">
-              <Button type="submit" color="secondary" variant="contained">
-                Save Settings
-              </Button>
-            </Box>
-          </form>
-        )}
-      </Formik>
+      <Box display="flex" justifyContent="space-between" mt={4}>
+        <Button color="error" variant="outlined" onClick={handleDeleteAccount}>
+          Delete Account
+        </Button>
+        <Stack direction="row" spacing={2}>
+          <Button onClick={handleForgotPassword}>Need new password?</Button>
+          <Button variant="contained" onClick={handleSave} disabled={loading}>
+            {loading ? <CircularProgress size={24} /> : 'Save Settings'}
+          </Button>
+        </Stack>
+      </Box>
     </Box>
   );
-};
+}
 
 export default AccountSettingsForm;
