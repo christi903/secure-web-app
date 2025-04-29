@@ -1,6 +1,7 @@
+// routes/auth.js
 const express = require('express');
 const admin = require('../config/firebaseAdmin');
-const pool = require('../config/db.js'); // PostgreSQL pool setup (e.g., from pg)
+const pool = require('../config/db');
 const router = express.Router();
 
 // Middleware to verify Firebase token
@@ -32,12 +33,16 @@ router.post('/register', verifyFirebaseToken, async (req, res) => {
 
   try {
     // Check if user already exists
-    const userExists = await pool.query('SELECT * FROM users WHERE firebase_uid = $1', [uid]);
-    if (userExists.rows.length > 0) {
+    const userExistsResult = await pool.query(
+      'SELECT * FROM users WHERE firebase_uid = $1',
+      [uid]
+    );
+
+    if (userExistsResult.rows.length > 0) {
       return res.status(200).json({ message: 'User already registered' });
     }
 
-    // Insert into DB
+    // Insert new user into DB
     await pool.query(
       `INSERT INTO users (firebase_uid, email, first_name, last_name, role)
        VALUES ($1, $2, $3, $4, $5)`,

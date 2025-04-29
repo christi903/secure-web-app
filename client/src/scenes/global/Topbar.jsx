@@ -49,6 +49,7 @@ const Topbar = () => {
   const handleAccountSettings = () => {
     console.log("Account Settings clicked");
     handleClose();
+    navigate("/form"); // Navigate to the form page
   };
 
   // Handle Logout action

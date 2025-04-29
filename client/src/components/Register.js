@@ -73,23 +73,27 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
     if (!validateForm()) return;
-  
+
     setLoading(true);
+    
     try {
+      // Create user with Firebase Authentication
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         formData.email,
         formData.password
       );
       const user = userCredential.user;
-  
+
+      // Send the email verification
       await sendEmailVerification(user);
-  
+
       // Get Firebase ID token
       const idToken = await user.getIdToken();
-  
-      // Send user info to your backend
+
+      // Send user details to your backend
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
@@ -102,14 +106,17 @@ const Register = () => {
           role: formData.role,
         }),
       });
-  
+
       const result = await response.json();
-  
+
       if (!response.ok) {
         throw new Error(result.message || 'Failed to store user info');
       }
-  
+
+      // Show success toast after successful registration
       toast.success('Registration successful! Please verify your email before logging in.');
+      
+      // Navigate to login page after success
       navigate('/login');
     } catch (error) {
       console.error('Registration error:', error);
@@ -118,7 +125,6 @@ const Register = () => {
       setLoading(false);
     }
   };
-  
 
   return (
     <ThemeProvider theme={fixedTheme}>
