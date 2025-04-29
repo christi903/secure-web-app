@@ -27,7 +27,7 @@ import Bar from './components/BarChart';
 import Pie from './components/PieChart';
 import Line from './components/LineChart';
 import GeographyChart from './components/GeographyChart';
-import TransactionDetails from "./scenes/transactions/transactionDetails";
+
 
 function App() {
   const [theme, colorMode] = useMode();
@@ -46,7 +46,6 @@ function App() {
               <Route path="/team" element={<Team />} />
               <Route path="/transactionreview" element={<TransactionReview />} />
               <Route path="/transactionrecords" element={<TransactionRecords />} />
-              <Route path="/transactions/:id" element={<TransactionDetails />} />
               <Route path="/form" element={<Form />} />
               <Route path="/calendar" element={<Calendar />} />
               <Route path="/faq" element={<FAQ />} />

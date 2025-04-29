@@ -151,4 +151,4 @@ export default function AccountSettings() {
   );
 }
 
-export default AccountSettingsForm;
+// Remove duplicate default export since it's already exported at component declaration
