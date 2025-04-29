@@ -1,10 +1,25 @@
-import { Box, Button, TextField, MenuItem, Typography, InputLabel, Select, FormControl, InputAdornment, IconButton } from "@mui/material";
+import {
+  Box,
+  Button,
+  TextField,
+  MenuItem,
+  Typography,
+  InputLabel,
+  Select,
+  FormControl,
+  InputAdornment,
+  IconButton,
+  LinearProgress,
+} from "@mui/material";
 import { Formik } from "formik";
 import * as yup from "yup";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import Header from "../../components/Header";
 import React, { useState } from "react";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
+import { storage, auth } from "../../firebase"; // ✅ Import firebase storage and auth
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"; // ✅ Import storage methods
+import { getIdToken } from "firebase/auth"; // ✅ Import getIdToken for ID token retrieval
 
 const initialValues = {
   firstName: "",
@@ -18,7 +33,7 @@ const initialValues = {
   confirmPassword: "",
   twoFactorAuth: false,
   language: "",
-  profilePicture: null,
+  profilePicture: null, // Will hold the file itself
 };
 
 const userSchema = yup.object().shape({
@@ -35,13 +50,54 @@ const userSchema = yup.object().shape({
 const AccountSettingsForm = () => {
   const isNonMobile = useMediaQuery("(min-width:600px)");
   const [showPassword, setShowPassword] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0); // ✅ Track progress
+  const [uploading, setUploading] = useState(false); // ✅ Track uploading status
 
-  const handleFormSubmit = (values) => {
-    const formData = new FormData();
-    Object.entries(values).forEach(([key, val]) => {
-      formData.append(key, val);
-    });
-    console.log("Form submitted", values);
+  const handleFormSubmit = async (values) => {
+    try {
+      let profilePictureUrl = null;
+
+      if (values.profilePicture) {
+        setUploading(true);
+        const storageRef = ref(storage, `profilePictures/${values.profilePicture.name}`);
+        const uploadTask = uploadBytesResumable(storageRef, values.profilePicture);
+
+        await new Promise((resolve, reject) => {
+          uploadTask.on(
+            "state_changed",
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              setUploadProgress(progress);
+            },
+            (error) => {
+              console.error("Upload error", error);
+              reject(error);
+            },
+            async () => {
+              profilePictureUrl = await getDownloadURL(uploadTask.snapshot.ref);
+              resolve();
+            }
+          );
+        });
+
+        setUploading(false);
+        setUploadProgress(0);
+      }
+
+      // Now submit the form data
+      const formData = {
+        ...values,
+        profilePictureUrl, // replace file object with URL
+      };
+
+      console.log("Form submitted", formData);
+      alert("Profile updated successfully!");
+    } catch (error) {
+      console.error("Form submission error:", error);
+      alert("Error updating profile. Please try again.");
+      setUploading(false);
+      setUploadProgress(0);
+    }
   };
 
   const togglePasswordVisibility = () => setShowPassword(!showPassword);
@@ -53,6 +109,36 @@ const AccountSettingsForm = () => {
     { code: "+250", label: "Rwanda 🇷🇼" },
     { code: "+251", label: "Ethiopia 🇪🇹" },
   ];
+
+  const handleDeleteAccount = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        alert("No user is signed in.");
+        return;
+      }
+
+      const idToken = await getIdToken(user, true); // Get fresh ID token
+
+      const response = await fetch("/api/auth/delete-account", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        alert(result.message);
+        window.location.href = "/login";
+      } else {
+        alert(result.message);
+      }
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      alert("There was an error deleting the account. Please try again.");
+    }
+  };
 
   return (
     <Box m="20px">
@@ -114,16 +200,15 @@ const AccountSettingsForm = () => {
 
               <FormControl fullWidth variant="filled" sx={{ gridColumn: "span 2" }}>
                 <InputLabel>Country Code</InputLabel>
-                <Select
-                  name="countryCode"
-                  value={values.countryCode}
-                  onChange={handleChange}
-                >
+                <Select name="countryCode" value={values.countryCode} onChange={handleChange}>
                   {countryCodes.map((c) => (
-                    <MenuItem key={c.code} value={c.code}>{c.label}</MenuItem>
+                    <MenuItem key={c.code} value={c.code}>
+                      {c.label}
+                    </MenuItem>
                   ))}
                 </Select>
               </FormControl>
+
               <TextField
                 fullWidth
                 variant="filled"
@@ -159,6 +244,14 @@ const AccountSettingsForm = () => {
                   accept="image/*"
                   onChange={(event) => setFieldValue("profilePicture", event.currentTarget.files[0])}
                 />
+                {uploading && (
+                  <Box sx={{ mt: 2 }}>
+                    <LinearProgress variant="determinate" value={uploadProgress} />
+                    <Typography variant="body2" sx={{ mt: 1 }}>{`Uploading: ${Math.round(
+                      uploadProgress
+                    )}%`}</Typography>
+                  </Box>
+                )}
               </Box>
 
               {/* Security Settings */}
@@ -179,7 +272,7 @@ const AccountSettingsForm = () => {
                         {showPassword ? <VisibilityOff /> : <Visibility />}
                       </IconButton>
                     </InputAdornment>
-                  )
+                  ),
                 }}
               />
               <TextField
@@ -221,7 +314,6 @@ const AccountSettingsForm = () => {
                 </Select>
               </FormControl>
 
-              {/* System Preferences */}
               <FormControl fullWidth variant="filled" sx={{ gridColumn: "span 4" }}>
                 <InputLabel>Language</InputLabel>
                 <Select
@@ -241,7 +333,11 @@ const AccountSettingsForm = () => {
                 <Typography variant="h6" color="error" gutterBottom>
                   Danger Zone
                 </Typography>
-                <Button variant="contained" color="error">
+                <Button
+                  variant="contained"
+                  color="error"
+                  onClick={handleDeleteAccount}
+                >
                   Delete Account
                 </Button>
               </Box>

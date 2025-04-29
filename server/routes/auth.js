@@ -1,4 +1,3 @@
-// routes/auth.js
 const express = require('express');
 const admin = require('../config/firebaseAdmin');
 const pool = require('../config/db');
@@ -22,6 +21,20 @@ const verifyFirebaseToken = async (req, res, next) => {
   }
 };
 
+// Helper function to check if email exists in Firebase
+const checkEmailInFirebase = async (email) => {
+  try {
+    const userRecord = await admin.auth().getUserByEmail(email);
+    return userRecord ? true : false; // Return true if user exists, false otherwise
+  } catch (error) {
+    if (error.code === 'auth/user-not-found') {
+      return false; // Email not found in Firebase
+    }
+    console.error('Error checking email in Firebase:', error);
+    throw new Error('Error checking Firebase user');
+  }
+};
+
 // POST /api/auth/register
 router.post('/register', verifyFirebaseToken, async (req, res) => {
   const { firstName, lastName, role } = req.body;
@@ -32,27 +45,53 @@ router.post('/register', verifyFirebaseToken, async (req, res) => {
   }
 
   try {
-    // Check if user already exists
+    // Check if the email exists in Firebase Authentication
+    const emailExistsInFirebase = await checkEmailInFirebase(email);
+
+    // Check if user already exists in the database
     const userExistsResult = await pool.query(
       'SELECT * FROM users WHERE firebase_uid = $1',
       [uid]
     );
 
     if (userExistsResult.rows.length > 0) {
+      // User is already registered in the database
       return res.status(200).json({ message: 'User already registered' });
     }
 
-    // Insert new user into DB
-    await pool.query(
-      `INSERT INTO users (firebase_uid, email, first_name, last_name, role)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [uid, email, firstName, lastName, role]
-    );
-
-    res.status(201).json({ message: 'User registered in database' });
+    if (emailExistsInFirebase) {
+      // The email exists in Firebase but not in the database, sync data
+      await pool.query(
+        `INSERT INTO users (firebase_uid, email, first_name, last_name, role)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [uid, email, firstName, lastName, role]
+      );
+      return res.status(201).json({ message: 'User synced and registered successfully' });
+    } else {
+      // The email does not exist in Firebase Authentication
+      return res.status(400).json({ message: 'Email is not registered in Firebase' });
+    }
   } catch (err) {
     console.error('Database error:', err);
     res.status(500).json({ message: 'Database error' });
+  }
+});
+
+// DELETE /api/auth/delete-account
+router.delete('/delete-account', verifyFirebaseToken, async (req, res) => {
+  const { uid } = req.user;
+
+  try {
+    // First, delete the user from Firebase Authentication
+    await admin.auth().deleteUser(uid);
+
+    // Then, delete the user from the PostgreSQL database
+    await pool.query('DELETE FROM users WHERE firebase_uid = $1', [uid]);
+
+    res.status(200).json({ message: 'Account successfully deleted' });
+  } catch (err) {
+    console.error('Error deleting account:', err);
+    res.status(500).json({ message: 'Failed to delete account' });
   }
 });
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ProSidebar, Menu, MenuItem } from "react-pro-sidebar";
 import "react-pro-sidebar/dist/css/styles.css";
@@ -17,7 +17,8 @@ import PieChartOutlineOutlinedIcon from "@mui/icons-material/PieChartOutlineOutl
 import TimelineOutlinedIcon from "@mui/icons-material/TimelineOutlined";
 import MapOutlinedIcon from "@mui/icons-material/MapOutlined";
 import SecureLogo from "../../assets/securelogo";
-
+import { auth } from "../../firebase"; // Firebase auth import
+import { getUserProfile } from "../../utils"; // Utility function to get user profile from Firebase/Firestore
 
 const Item = ({ title, to, icon, selected, setSelected }) => {
   const theme = useTheme();
@@ -41,6 +42,20 @@ const SidebarComponent = () => {
   const colors = tokens(theme.palette.mode);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [selected, setSelected] = useState("Dashboard");
+
+  const [user, setUser] = useState(null); // To hold user details
+
+  useEffect(() => {
+    // Get logged-in user's data from Firebase
+    const fetchUser = async () => {
+      const userData = await getUserProfile(auth.currentUser.uid); // Assuming getUserProfile fetches user details from Firestore
+      setUser(userData);
+    };
+
+    if (auth.currentUser) {
+      fetchUser();
+    }
+  }, []);
 
   return (
     <Box
@@ -70,33 +85,32 @@ const SidebarComponent = () => {
         <Menu>
           {/* LOGO AND MENU ICON */}
           <MenuItem
-              icon={isCollapsed ? <MenuOutlinedIcon /> : undefined}
-               style={{
-               margin: "10px 0 20px 0",
-               color: colors.grey[100],
-              }}
-              onClick={() => setIsCollapsed(!isCollapsed)}
->
-  {!isCollapsed && (
-    <Box display="flex" justifyContent="center" alignItems="center" ml="15px">
-      <SecureLogo color={colors.greenAccent[500]} />
-      <IconButton sx={{ ml: 2 }} color="inherit">
-        <MenuOutlinedIcon />
-      </IconButton>
-    </Box>
-  )}
-</MenuItem>
-
+            icon={isCollapsed ? <MenuOutlinedIcon /> : undefined}
+            style={{
+              margin: "10px 0 20px 0",
+              color: colors.grey[100],
+            }}
+            onClick={() => setIsCollapsed(!isCollapsed)}
+          >
+            {!isCollapsed && (
+              <Box display="flex" justifyContent="center" alignItems="center" ml="15px">
+                <SecureLogo color={colors.greenAccent[500]} />
+                <IconButton sx={{ ml: 2 }} color="inherit">
+                  <MenuOutlinedIcon />
+                </IconButton>
+              </Box>
+            )}
+          </MenuItem>
 
           {/* USER PROFILE SECTION */}
-          {!isCollapsed && (
+          {!isCollapsed && user && (
             <Box mb="25px">
               <Box display="flex" justifyContent="center" alignItems="center">
                 <img
                   alt="profile-user"
                   width="100px"
                   height="100px"
-                  src="/assets/user.jpg"
+                  src={user.profilePictureUrl || "/assets/user.jpg"} // Assuming you store profile picture URL
                   style={{ cursor: "pointer", borderRadius: "50%" }}
                 />
               </Box>
@@ -108,14 +122,14 @@ const SidebarComponent = () => {
                   fontWeight="bold"
                   sx={{ mt: "10px" }}
                 >
-                  Karim Ntillah
+                  {user.firstName} {user.lastName} {/* Display user full name */}
                 </Typography>
                 <Typography
                   variant="h6"
                   color={colors.greenAccent[400]}
                   sx={{ fontStyle: "italic" }}
                 >
-                  Fraud Analyst
+                  {user.role} {/* Display user role */}
                 </Typography>
               </Box>
             </Box>
