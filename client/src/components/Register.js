@@ -4,7 +4,8 @@ import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
 } from 'firebase/auth';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase'; // 🔥 import Firestore db
+import { doc, setDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import {
   Box,
@@ -19,7 +20,7 @@ import {
 } from '@mui/material';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { motion } from 'framer-motion';
-import SecureLogo from "../assets/securelogo"; // Update path if needed
+import SecureLogo from "../assets/securelogo";
 
 const fixedTheme = createTheme({
   palette: {
@@ -73,13 +74,13 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
 
     setLoading(true);
-    
+
     try {
-      // Create user with Firebase Authentication
+      // Create user account
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         formData.email,
@@ -87,36 +88,19 @@ const Register = () => {
       );
       const user = userCredential.user;
 
-      // Send the email verification
+      // Send email verification
       await sendEmailVerification(user);
 
-      // Get Firebase ID token
-      const idToken = await user.getIdToken();
-
-      // Send user details to your backend
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          role: formData.role,
-        }),
+      // Save user profile to Firestore
+      await setDoc(doc(db, 'users', user.uid), {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        role: formData.role,
+        email: formData.email,
+        createdAt: new Date()
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Failed to store user info');
-      }
-
-      // Show success toast after successful registration
       toast.success('Registration successful! Please verify your email before logging in.');
-      
-      // Navigate to login page after success
       navigate('/login');
     } catch (error) {
       console.error('Registration error:', error);

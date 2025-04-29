@@ -17,8 +17,8 @@ import PieChartOutlineOutlinedIcon from "@mui/icons-material/PieChartOutlineOutl
 import TimelineOutlinedIcon from "@mui/icons-material/TimelineOutlined";
 import MapOutlinedIcon from "@mui/icons-material/MapOutlined";
 import SecureLogo from "../../assets/securelogo";
-import { auth } from "../../firebase"; // Firebase auth import
-import { getUserProfile } from "../../utils"; // Utility function to get user profile from Firebase/Firestore
+import { auth } from "../../firebase";
+import { getUserProfile } from "../../utils";
 
 const Item = ({ title, to, icon, selected, setSelected }) => {
   const theme = useTheme();
@@ -30,7 +30,11 @@ const Item = ({ title, to, icon, selected, setSelected }) => {
       onClick={() => setSelected(title)}
       icon={icon}
     >
-      <Typography component={Link} to={to} style={{ textDecoration: "none", color: "inherit" }}>
+      <Typography
+        component={Link}
+        to={to}
+        style={{ textDecoration: "none", color: "inherit" }}
+      >
         {title}
       </Typography>
     </MenuItem>
@@ -42,13 +46,11 @@ const SidebarComponent = () => {
   const colors = tokens(theme.palette.mode);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [selected, setSelected] = useState("Dashboard");
-
-  const [user, setUser] = useState(null); // To hold user details
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
-    // Get logged-in user's data from Firebase
     const fetchUser = async () => {
-      const userData = await getUserProfile(auth.currentUser.uid); // Assuming getUserProfile fetches user details from Firestore
+      const userData = await getUserProfile(auth.currentUser.uid);
       setUser(userData);
     };
 
@@ -60,10 +62,10 @@ const SidebarComponent = () => {
   return (
     <Box
       sx={{
-        height: "100vh", // Full height of viewport
+        height: "100vh",
         display: "flex",
         flexDirection: "column",
-        overflowY: "auto", // Ensure scrolling happens within the sidebar if needed
+        overflowY: "auto",
         "& .pro-sidebar-inner": {
           background: `${colors.primary[400]} !important`,
         },
@@ -73,23 +75,20 @@ const SidebarComponent = () => {
         "& .pro-inner-item": {
           padding: "5px 35px 5px 20px !important",
         },
-        "& .pro-inner-item-hover": {
+        "& .pro-inner-item:hover": {
           color: "#868dfb !important",
         },
-        "& .pro-menu-item-active": {
+        "& .pro-menu-item.active": {
           color: "#6870fa !important",
         },
       }}
     >
       <ProSidebar collapsed={isCollapsed} collapsedWidth="80px" width="250px">
         <Menu>
-          {/* LOGO AND MENU ICON */}
+          {/* LOGO AND TOGGLE ICON */}
           <MenuItem
             icon={isCollapsed ? <MenuOutlinedIcon /> : undefined}
-            style={{
-              margin: "10px 0 20px 0",
-              color: colors.grey[100],
-            }}
+            style={{ margin: "10px 0 20px 0", color: colors.grey[100] }}
             onClick={() => setIsCollapsed(!isCollapsed)}
           >
             {!isCollapsed && (
@@ -104,32 +103,33 @@ const SidebarComponent = () => {
 
           {/* USER PROFILE SECTION */}
           {!isCollapsed && user && (
-            <Box mb="25px">
-              <Box display="flex" justifyContent="center" alignItems="center">
-                <img
-                  alt="profile-user"
-                  width="100px"
-                  height="100px"
-                  src={user.profilePictureUrl || "/assets/user.jpg"} // Assuming you store profile picture URL
-                  style={{ cursor: "pointer", borderRadius: "50%" }}
-                />
-              </Box>
-
-              <Box textAlign="center">
+            <Box mb="25px" display="flex" flexDirection="column" alignItems="center">
+              <img
+                alt="profile-user"
+                width="100px"
+                height="100px"
+                src={user.profilePictureUrl || "/assets/user.jpg"}
+                style={{
+                  cursor: "pointer",
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                }}
+              />
+              <Box textAlign="center" mt={2}>
                 <Typography
                   variant="h4"
                   color={colors.grey[100]}
                   fontWeight="bold"
-                  sx={{ mt: "10px" }}
+                  sx={{ mt: "10px", fontSize: "1.1rem" }}
                 >
-                  {user.firstName} {user.lastName} {/* Display user full name */}
+                  {user.firstName} {user.lastName}
                 </Typography>
                 <Typography
                   variant="h6"
                   color={colors.greenAccent[400]}
-                  sx={{ fontStyle: "italic" }}
+                  sx={{ fontStyle: "italic", fontSize: "0.9rem" }}
                 >
-                  {user.role} {/* Display user role */}
+                  {user.role}
                 </Typography>
               </Box>
             </Box>
@@ -138,25 +138,22 @@ const SidebarComponent = () => {
           {/* MENU ITEMS */}
           <Box paddingLeft={isCollapsed ? undefined : "10px"}>
             <Item title="Dashboard" to="/" icon={<HomeOutlinedIcon />} selected={selected} setSelected={setSelected} />
-            <Typography variant="h6" 
-            color={colors.grey[300]}
-            sx={{ m: "15px 0 5px 20px"}}>
+
+            <Typography variant="h6" color={colors.grey[300]} sx={{ m: "15px 0 5px 20px" }}>
               Data
             </Typography>
             <Item title="Manage Team" to="/team" icon={<PeopleOutlinedIcon />} selected={selected} setSelected={setSelected} />
             <Item title="Transaction Review" to="/transactionreview" icon={<ContactsOutlinedIcon />} selected={selected} setSelected={setSelected} />
             <Item title="Transaction Records" to="/transactionrecords" icon={<ReceiptOutlinedIcon />} selected={selected} setSelected={setSelected} />
-            <Typography variant="h6" 
-            color={colors.grey[300]}
-            sx={{ m: "15px 0 5px 20px"}}>
+
+            <Typography variant="h6" color={colors.grey[300]} sx={{ m: "15px 0 5px 20px" }}>
               Pages
             </Typography>
             <Item title="Account Settings" to="/form" icon={<PersonOutlinedIcon />} selected={selected} setSelected={setSelected} />
             <Item title="Calendar" to="/calendar" icon={<CalendarTodayOutlinedIcon />} selected={selected} setSelected={setSelected} />
             <Item title="FAQ Page" to="/faq" icon={<HelpOutlinedIcon />} selected={selected} setSelected={setSelected} />
-            <Typography variant="h6" 
-            color={colors.grey[300]}
-            sx={{ m: "15px 0 5px 20px"}}>
+
+            <Typography variant="h6" color={colors.grey[300]} sx={{ m: "15px 0 5px 20px" }}>
               Charts
             </Typography>
             <Item title="Bar Chart" to="/bar" icon={<BarChartOutlinedIcon />} selected={selected} setSelected={setSelected} />
