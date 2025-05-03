@@ -1,103 +1,147 @@
 import React, { useEffect, useState } from 'react';
 import {
   Box, Button, TextField, Typography, Avatar, Grid,
-  Stack, IconButton, CircularProgress
+  Stack, IconButton, CircularProgress, Alert
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { getAuth, signOut, deleteUser, updateProfile } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { storage, db } from '../../firebase';
-import axios from 'axios';
 import { PhotoCamera } from '@mui/icons-material';
 
 export default function AccountSettings() {
+  const theme = useTheme();
   const auth = getAuth();
   const user = auth.currentUser;
   const navigate = useNavigate();
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('');
   const [profileImage, setProfileImage] = useState(null);
   const [previewURL, setPreviewURL] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const fetchUserData = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    try {
+      setEmail(user.email || 'Not set');
+
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        setFirstName(userData.firstName || 'Not set');
+        setLastName(userData.lastName || 'Not set');
+        setRole(userData.role || 'Not set');
+
+        if (userData.profileURL) {
+          try {
+            const storageRef = ref(storage, userData.profileURL);
+            const downloadURL = await getDownloadURL(storageRef);
+            setPreviewURL(downloadURL);
+          } catch (err) {
+            console.warn('Could not load profile image:', err);
+            setPreviewURL('');
+          }
+        } else {
+          setPreviewURL('');
+        }
+      } else {
+        setError('User document not found in Firestore');
+      }
+    } catch (err) {
+      console.error('Error loading user data:', err);
+      setError('Failed to load user data');
+    }
+  };
 
   useEffect(() => {
-    if (user) {
-      axios.get(`/api/user/${user.uid}`).then(res => {
-        const { first_name, last_name, username, email, role, profile_url } = res.data;
-        setFirstName(first_name);
-        setLastName(last_name);
-        setUsername(username);
-        setEmail(email);
-        setRole(role);
-        setPreviewURL(profile_url);
-      });
-    }
+    fetchUserData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    setProfileImage(file);
-    if (file) setPreviewURL(URL.createObjectURL(file));
+    setError('');
+    setSuccess('');
+
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+
+      if (!file.type.startsWith('image/')) {
+        setError('Please select an image file (JPEG, PNG, etc.)');
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image size must be less than 5MB');
+        return;
+      }
+
+      setProfileImage(file);
+      setPreviewURL(URL.createObjectURL(file));
+    }
   };
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!user || !profileImage) return;
+
     setLoading(true);
+    setError('');
+    setSuccess('');
 
     try {
-      let downloadURL = previewURL;
+      const timestamp = Date.now();
+      const storagePath = `user-profiles/${user.uid}/${timestamp}_profile.jpg`;
+      const storageRef = ref(storage, storagePath);
 
-      if (profileImage) {
-        const imageRef = ref(storage, `profiles/${user.uid}`);
-        await uploadBytes(imageRef, profileImage);
-        downloadURL = await getDownloadURL(imageRef);
-      }
+      await uploadBytes(storageRef, profileImage);
+      const downloadURL = await getDownloadURL(storageRef);
 
-      await updateProfile(user, {
-        photoURL: downloadURL,
-      });
+      await updateProfile(user, { photoURL: downloadURL });
 
-      // Update in your backend
-      await axios.put(`/api/user/${user.uid}`, {
-        first_name: firstName,
-        last_name: lastName,
-        role: role,
-        profile_url: downloadURL,
-      });
+      const userDocRef = doc(db, 'users', user.uid);
+      await setDoc(userDocRef, {
+        profileURL: storagePath,
+        updatedAt: new Date()
+      }, { merge: true });
 
-      // Update in Firestore
-      await updateDoc(doc(db, 'users', user.uid), {
-        profile_url: downloadURL,
-      });
-
-      alert('Settings saved successfully!');
-    } catch (error) {
-      console.error('Error saving settings:', error);
-      alert('Failed to save settings.');
+      await fetchUserData();
+      setProfileImage(null);
+      setSuccess('Profile picture updated successfully!');
+    } catch (err) {
+      console.error('Error updating profile:', err);
+      setError(err.message || 'Failed to update profile picture');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const handleDeleteAccount = async () => {
-    if (!window.confirm('Are you sure you want to delete your account? This cannot be undone.')) return;
+    if (!window.confirm('Are you sure you want to permanently delete your account?')) return;
+
     try {
-      await axios.delete(`/api/user/${user.uid}`);
+      await deleteDoc(doc(db, 'users', user.uid));
       await deleteUser(user);
       navigate('/login');
     } catch (error) {
       console.error('Error deleting account:', error);
-      alert('Failed to delete account.');
+      alert('Failed to delete account. You may need to reauthenticate.');
     }
   };
 
-  const handleForgotPassword = async () => {
-    await signOut(auth);
+  const handleForgotPassword = () => {
+    signOut(auth);
     navigate('/forgot-password');
   };
 
@@ -105,18 +149,34 @@ export default function AccountSettings() {
     <Box maxWidth="md" mx="auto" p={3}>
       <Typography variant="h5" gutterBottom>Account Settings</Typography>
 
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+
       <Stack direction="row" spacing={2} alignItems="center" mb={3}>
-        <Avatar src={previewURL} sx={{ width: 80, height: 80 }} />
+        <Avatar
+          src={previewURL}
+          sx={{
+            width: 80,
+            height: 80,
+            fontSize: '2rem',
+            bgcolor: previewURL ? 'transparent' : theme.palette.primary.main,
+            color: theme.palette.getContrastText(theme.palette.primary.main)
+          }}
+        >
+          {!previewURL && firstName && lastName
+            ? `${firstName.charAt(0)}${lastName.charAt(0)}`
+            : null}
+        </Avatar>
         <label htmlFor="upload-photo">
           <input
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/gif"
             id="upload-photo"
             style={{ display: 'none' }}
             onChange={handleImageChange}
           />
-          <IconButton color="primary" component="span">
-            <PhotoCamera />
+          <IconButton component="span">
+            <PhotoCamera sx={{ color: theme.palette.text.primary }} />
           </IconButton>
         </label>
       </Stack>
@@ -128,6 +188,7 @@ export default function AccountSettings() {
             label="First Name"
             value={firstName}
             InputProps={{ readOnly: true }}
+            variant="outlined"
           />
         </Grid>
         <Grid item xs={6}>
@@ -136,14 +197,7 @@ export default function AccountSettings() {
             label="Last Name"
             value={lastName}
             InputProps={{ readOnly: true }}
-          />
-        </Grid>
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Username"
-            value={username}
-            InputProps={{ readOnly: true }}
+            variant="outlined"
           />
         </Grid>
         <Grid item xs={12}>
@@ -152,6 +206,7 @@ export default function AccountSettings() {
             label="Email"
             value={email}
             InputProps={{ readOnly: true }}
+            variant="outlined"
           />
         </Grid>
         <Grid item xs={12}>
@@ -160,18 +215,30 @@ export default function AccountSettings() {
             label="Role"
             value={role}
             InputProps={{ readOnly: true }}
+            variant="outlined"
           />
         </Grid>
       </Grid>
 
       <Box display="flex" justifyContent="space-between" mt={4}>
-        <Button color="error" variant="outlined" onClick={handleDeleteAccount}>
+        <Button
+          color="error"
+          variant="outlined"
+          onClick={handleDeleteAccount}
+        >
           Delete Account
         </Button>
         <Stack direction="row" spacing={2}>
-          <Button onClick={handleForgotPassword}>Need new password?</Button>
-          <Button variant="contained" onClick={handleSave} disabled={loading}>
-            {loading ? <CircularProgress size={24} /> : 'Save Settings'}
+          <Button onClick={handleForgotPassword}>
+            Reset Password
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSave}
+            disabled={loading || !profileImage}
+            startIcon={loading ? <CircularProgress size={20} /> : null}
+          >
+            {loading ? 'Saving...' : 'Save Profile Picture'}
           </Button>
         </Stack>
       </Box>

@@ -77,6 +77,41 @@ router.post('/register', verifyFirebaseToken, async (req, res) => {
   }
 });
 
+// GET /api/auth/verify-email
+router.get('/verify-email', async (req, res) => {
+  const { token } = req.query;
+  if (!token) {
+    return res.status(400).json({ message: 'Missing token' });
+  }
+  try {
+    const decoded = await admin.auth().verifyIdToken(token);
+    if (decoded.email_verified) {
+      return res.status(200).json({ message: 'Email already verified' });
+    }
+    // Firebase automatically verifies email via the link, so just check status
+    return res.status(200).json({ message: 'Email verified successfully' });
+  } catch (err) {
+    console.error('Email verification failed:', err);
+    return res.status(400).json({ message: 'Invalid or expired token' });
+  }
+});
+
+// POST /api/auth/reset-password
+router.post('/reset-password', async (req, res) => {
+  const { email, newPassword } = req.body;
+  if (!email || !newPassword) {
+    return res.status(400).json({ message: 'Missing email or new password' });
+  }
+  try {
+    const userRecord = await admin.auth().getUserByEmail(email);
+    await admin.auth().updateUser(userRecord.uid, { password: newPassword });
+    return res.status(200).json({ message: 'Password reset successfully' });
+  } catch (err) {
+    console.error('Password reset failed:', err);
+    return res.status(400).json({ message: 'Failed to reset password' });
+  }
+});
+
 // DELETE /api/auth/delete-account
 router.delete('/delete-account', verifyFirebaseToken, async (req, res) => {
   const { uid } = req.user;

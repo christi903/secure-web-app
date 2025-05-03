@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import {
+import { 
   createUserWithEmailAndPassword,
-  sendEmailVerification,
+  sendEmailVerification 
 } from 'firebase/auth';
-import { auth, db } from '../firebase'; // 🔥 import Firestore db
+import { auth, db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import {
@@ -63,24 +63,21 @@ const Register = () => {
 
   const validateForm = () => {
     const newErrors = {};
-    if (!formData.email.includes('@')) newErrors.email = 'Email is invalid';
+    if (!formData.email.includes('@')) newErrors.email = 'Invalid email';
     if (formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters';
-    if (!formData.firstName) newErrors.firstName = 'First name is required';
-    if (!formData.lastName) newErrors.lastName = 'Last name is required';
-    if (!formData.role) newErrors.role = 'Role is required';
+    if (!formData.firstName) newErrors.firstName = 'First name required';
+    if (!formData.lastName) newErrors.lastName = 'Last name required';
+    if (!formData.role) newErrors.role = 'Role required';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (!validateForm()) return;
-
     setLoading(true);
 
     try {
-      // Create user account
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         formData.email,
@@ -88,23 +85,24 @@ const Register = () => {
       );
       const user = userCredential.user;
 
-      // Send email verification
       await sendEmailVerification(user);
 
-      // Save user profile to Firestore
+      // Create user document with consistent camelCase field names
       await setDoc(doc(db, 'users', user.uid), {
         firstName: formData.firstName,
         lastName: formData.lastName,
-        role: formData.role,
         email: formData.email,
-        createdAt: new Date()
+        role: formData.role,
+        profileURL: '', // Initialize empty profile URL
+        createdAt: new Date(),
+        updatedAt: new Date()
       });
 
-      toast.success('Registration successful! Please verify your email before logging in.');
+      toast.success('Registration successful! Please verify your email.');
       navigate('/login');
     } catch (error) {
       console.error('Registration error:', error);
-      toast.error(error.message || 'An error occurred during registration');
+      toast.error(error.message || 'Registration failed');
     } finally {
       setLoading(false);
     }
@@ -113,162 +111,143 @@ const Register = () => {
   return (
     <ThemeProvider theme={fixedTheme}>
       <CssBaseline />
-      <Box
-        sx={{
-          minHeight: '100vh',
-          backgroundColor: fixedTheme.palette.background.default,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          px: 2,
-        }}
-      >
-        <Grid
-          container
-          spacing={2}
-          alignItems="center"
-          justifyContent="center"
-          sx={{ maxWidth: '1000px' }}
-        >
+      <Box sx={{ 
+        minHeight: '100vh', 
+        backgroundColor: fixedTheme.palette.background.default,
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        px: 2 
+      }}>
+        <Grid container spacing={2} alignItems="center" justifyContent="center" sx={{ maxWidth: '1000px' }}>
+          
           {/* Logo Panel */}
-          <Grid
-            item
-            xs={12}
-            md={6}
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              minHeight: '400px',
-              gap: 2,
-            }}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
+          <Grid item xs={12} md={6} sx={{ 
+            display: 'flex', 
+            flexDirection: 'column',
+            justifyContent: 'center', 
+            alignItems: 'center', 
+            minHeight: '400px', 
+            gap: 2 
+          }}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.8 }} 
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.8, ease: 'easeOut' }}
             >
               <SecureLogo color="#3b82f6" />
             </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }} 
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 1, delay: 0.3 }}
             >
-              <Typography
-                variant="subtitle1"
-                align="center"
-                sx={{
-                  color: '#3b82f6',
-                  fontStyle: 'italic',
-                  fontWeight: 500,
-                  fontSize: '1rem',
-                  letterSpacing: '0.5px',
-                }}
-              >
+              <Typography variant="subtitle1" align="center" sx={{
+                color: '#3b82f6', 
+                fontStyle: 'italic', 
+                fontWeight: 500,
+                fontSize: '1rem', 
+                letterSpacing: '0.5px' 
+              }}>
                 Your First Line of Defense Against Fraud
               </Typography>
             </motion.div>
           </Grid>
 
-          {/* Register Form Panel */}
+          {/* Register Form */}
           <Grid item xs={12} md={6}>
-            <motion.div
-              initial={{ opacity: 0, x: 50 }}
+            <motion.div 
+              initial={{ opacity: 0, x: 50 }} 
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8, delay: 0.2 }}
             >
-              <Paper
-                elevation={3}
-                sx={{
-                  padding: 4,
-                  backgroundColor: fixedTheme.palette.background.paper,
-                }}
-              >
+              <Paper elevation={3} sx={{ 
+                padding: 4, 
+                backgroundColor: fixedTheme.palette.background.paper 
+              }}>
                 <Typography component="h1" variant="h5" align="center" gutterBottom>
                   Create Account
                 </Typography>
                 <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
                   <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>
-                      <TextField
-                        required
-                        fullWidth
-                        id="firstName"
-                        label="First Name"
+                      <TextField 
+                        required 
+                        fullWidth 
+                        id="firstName" 
+                        label="First Name" 
                         name="firstName"
-                        autoComplete="given-name"
-                        value={formData.firstName}
+                        autoComplete="given-name" 
+                        value={formData.firstName} 
                         onChange={handleChange}
-                        error={!!errors.firstName}
+                        error={!!errors.firstName} 
                         helperText={errors.firstName}
-                        sx={{ '& .MuiInputBase-root': { backgroundColor: '#fff' } }}
+                        sx={{ '& .MuiInputBase-root': { backgroundColor: '#fff' } }} 
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <TextField
-                        required
-                        fullWidth
-                        id="lastName"
-                        label="Last Name"
+                      <TextField 
+                        required 
+                        fullWidth 
+                        id="lastName" 
+                        label="Last Name" 
                         name="lastName"
-                        autoComplete="family-name"
-                        value={formData.lastName}
+                        autoComplete="family-name" 
+                        value={formData.lastName} 
                         onChange={handleChange}
-                        error={!!errors.lastName}
+                        error={!!errors.lastName} 
                         helperText={errors.lastName}
-                        sx={{ '& .MuiInputBase-root': { backgroundColor: '#fff' } }}
+                        sx={{ '& .MuiInputBase-root': { backgroundColor: '#fff' } }} 
                       />
                     </Grid>
                     <Grid item xs={12}>
-                      <TextField
-                        select
-                        required
-                        fullWidth
-                        label="Select Role"
+                      <TextField 
+                        select 
+                        required 
+                        fullWidth 
+                        label="Select Role" 
                         name="role"
-                        value={formData.role}
-                        onChange={handleChange}
+                        value={formData.role} 
+                        onChange={handleChange} 
                         error={!!errors.role}
                         helperText={errors.role}
                         sx={{ '& .MuiInputBase-root': { backgroundColor: '#fff', color: '#000' } }}
                       >
                         <MenuItem value="">Select a Role</MenuItem>
                         <MenuItem value="fraud_analyst">Fraud Analyst</MenuItem>
-                        <MenuItem value="support_agent">Customer Support Agent</MenuItem>
+                        <MenuItem value="support_agent">Support Agent</MenuItem>
                       </TextField>
                     </Grid>
                     <Grid item xs={12}>
-                      <TextField
-                        required
-                        fullWidth
-                        id="email"
-                        label="Email Address"
+                      <TextField 
+                        required 
+                        fullWidth 
+                        id="email" 
+                        label="Email Address" 
                         name="email"
-                        type="email"
-                        autoComplete="email"
-                        value={formData.email}
+                        type="email" 
+                        autoComplete="email" 
+                        value={formData.email} 
                         onChange={handleChange}
-                        error={!!errors.email}
+                        error={!!errors.email} 
                         helperText={errors.email}
-                        sx={{ '& .MuiInputBase-root': { backgroundColor: '#fff' } }}
+                        sx={{ '& .MuiInputBase-root': { backgroundColor: '#fff' } }} 
                       />
                     </Grid>
                     <Grid item xs={12}>
-                      <TextField
-                        required
-                        fullWidth
-                        name="password"
-                        label="Password"
+                      <TextField 
+                        required 
+                        fullWidth 
+                        name="password" 
+                        label="Password" 
                         type="password"
-                        id="password"
-                        autoComplete="new-password"
+                        id="password" 
+                        autoComplete="new-password" 
                         value={formData.password}
-                        onChange={handleChange}
-                        error={!!errors.password}
+                        onChange={handleChange} 
+                        error={!!errors.password} 
                         helperText={errors.password}
-                        sx={{ '& .MuiInputBase-root': { backgroundColor: '#fff', color: '#000' } }}
+                        sx={{ '& .MuiInputBase-root': { backgroundColor: '#fff', color: '#000' } }} 
                       />
                     </Grid>
                   </Grid>
@@ -276,12 +255,12 @@ const Register = () => {
                     type="submit"
                     fullWidth
                     variant="contained"
-                    sx={{
-                      mt: 3,
+                    sx={{ 
+                      mt: 3, 
                       mb: 2,
-                      '&:hover': {
-                        backgroundColor: '#2563eb',
-                      },
+                      '&:hover': { 
+                        backgroundColor: '#2563eb' 
+                      } 
                     }}
                     disabled={loading}
                   >
