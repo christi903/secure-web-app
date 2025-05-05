@@ -28,6 +28,7 @@ app.use('/api/', limiter);
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/user', require('./routes/user'));
 
 // Basic route for testing
 app.get('/', (req, res) => {
