@@ -27,6 +27,7 @@ import Bar from './components/BarChart';
 import Pie from './components/PieChart';
 import Line from './components/LineChart';
 import GeographyChart from './components/GeographyChart';
+import ManualTransactions from './scenes/manualrecords';
 
 
 function App() {
@@ -46,6 +47,7 @@ function App() {
               <Route path="/team" element={<Team />} />
               <Route path="/transactionreview" element={<TransactionReview />} />
               <Route path="/transactionrecords" element={<TransactionRecords />} />
+              <Route path="/manualrecords" element={<ManualTransactions />} />
               <Route path="/form" element={<Form />} />
               <Route path="/calendar" element={<Calendar />} />
               <Route path="/faq" element={<FAQ />} />
