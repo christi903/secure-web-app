@@ -229,9 +229,24 @@ export default function AccountSettings() {
           Delete Account
         </Button>
         <Stack direction="row" spacing={2}>
-          <Button onClick={handleForgotPassword}>
-            Reset Password
+          <Button
+            onClick={handleForgotPassword}
+            variant="text"
+            sx={{
+              textTransform: 'none',
+              textDecoration: 'underline',
+              color: theme.palette.mode === 'dark'
+                ? theme.palette.primary.light
+                : theme.palette.primary.main,
+              '&:hover': {
+                textDecoration: 'none',
+                backgroundColor: 'transparent',
+              }
+            }}
+          >
+            Need new password?
           </Button>
+
           <Button
             variant="contained"
             onClick={handleSave}
