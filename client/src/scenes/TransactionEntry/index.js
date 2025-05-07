@@ -1,6 +1,13 @@
-
-
 import React, { useState } from "react";
+import {
+  Box,
+  Button,
+  TextField,
+  Typography,
+  Paper,
+  Grid,
+  Divider,
+} from "@mui/material";
 
 const TransactionEntry = () => {
   const [form, setForm] = useState({
@@ -15,110 +22,140 @@ const TransactionEntry = () => {
     transactionDateTime: "",
   });
 
+  const [fraudScore, setFraudScore] = useState(null); // Percentage (0–100)
+  const [classification, setClassification] = useState("");
+
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // You can handle the form submission here (e.g., send data to backend or ML model)
-    console.log(form);
+
+    // Simulate fraud classification (replace with real API call later)
+    const randomScore = Math.floor(Math.random() * 101); // 0–100
+    setFraudScore(randomScore);
+
+    if (randomScore < 30) {
+      setClassification("Legit ✅");
+    } else if (randomScore < 70) {
+      setClassification("Flagged ⚠️");
+    } else {
+      setClassification("Blocked ❌");
+    }
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ maxWidth: 400, margin: "0 auto" }}>
-      <div>
-        <label>Initiator ID</label>
-        <input
-          type="text"
-          name="initiatorId"
-          value={form.initiatorId}
-          onChange={handleChange}
-          required
-        />
-      </div>
-      <div>
-        <label>Transaction Type</label>
-        <input
-          type="text"
-          name="transactionType"
-          value={form.transactionType}
-          onChange={handleChange}
-          required
-        />
-      </div>
-      <div>
-        <label>Transaction Amount</label>
-        <input
-          type="number"
-          name="transactionAmount"
-          value={form.transactionAmount}
-          onChange={handleChange}
-          required
-        />
-      </div>
-      <div>
-        <label>Recipient ID</label>
-        <input
-          type="text"
-          name="recipientId"
-          value={form.recipientId}
-          onChange={handleChange}
-          required
-        />
-      </div>
-      <div>
-        <label>Old Initiator Balance</label>
-        <input
-          type="number"
-          name="oldInitiatorBalance"
-          value={form.oldInitiatorBalance}
-          onChange={handleChange}
-          required
-        />
-      </div>
-      <div>
-        <label>New Initiator Balance</label>
-        <input
-          type="number"
-          name="newInitiatorBalance"
-          value={form.newInitiatorBalance}
-          onChange={handleChange}
-          required
-        />
-      </div>
-      <div>
-        <label>Old Recipient Balance</label>
-        <input
-          type="number"
-          name="oldRecipientBalance"
-          value={form.oldRecipientBalance}
-          onChange={handleChange}
-          required
-        />
-      </div>
-      <div>
-        <label>New Recipient Balance</label>
-        <input
-          type="number"
-          name="newRecipientBalance"
-          value={form.newRecipientBalance}
-          onChange={handleChange}
-          required
-        />
-      </div>
-      <div>
-        <label>Transaction Date and Time</label>
-        <input
-          type="datetime-local"
-          name="transactionDateTime"
-          value={form.transactionDateTime}
-          onChange={handleChange}
-          required
-        />
-      </div>
-      <button type="submit" style={{ marginTop: 16 }}>Submit</button>
-    </form>
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "center",
+        gap: 4,
+        flexWrap: "wrap",
+        mt: 4,
+      }}
+    >
+      {/* Transaction Form */}
+      <Paper
+        elevation={3}
+        sx={{
+          maxWidth: 600,
+          padding: 4,
+          borderRadius: 3,
+          flex: 1,
+          minWidth: 360,
+        }}
+      >
+        <Typography variant="h5" gutterBottom align="center">
+          Transaction Entry
+        </Typography>
+
+        <Box component="form" onSubmit={handleSubmit} noValidate>
+          <Grid container spacing={2}>
+            {Object.entries(form).map(([key, value]) => (
+              <Grid item xs={12} sm={6} key={key}>
+                <TextField
+                  fullWidth
+                  label={key
+                    .replace(/([A-Z])/g, " $1")
+                    .replace(/^./, (str) => str.toUpperCase())}
+                  name={key}
+                  type={
+                    key === "transactionDateTime"
+                      ? "datetime-local"
+                      : key.toLowerCase().includes("amount") ||
+                        key.toLowerCase().includes("balance")
+                      ? "number"
+                      : "text"
+                  }
+                  value={value}
+                  onChange={handleChange}
+                  InputLabelProps={
+                    key === "transactionDateTime"
+                      ? { shrink: true }
+                      : undefined
+                  }
+                  required
+                />
+              </Grid>
+            ))}
+          </Grid>
+
+          <Button
+            variant="contained"
+            color="primary"
+            type="submit"
+            fullWidth
+            sx={{ mt: 3 }}
+          >
+            Submit
+          </Button>
+        </Box>
+      </Paper>
+
+      {/* Result Panel */}
+      <Paper
+        elevation={3}
+        sx={{
+          width: 300,
+          minHeight: 200,
+          padding: 3,
+          borderRadius: 3,
+          textAlign: "center",
+          backgroundColor: "#f8f9fa",
+        }}
+      >
+        <Typography variant="h6" gutterBottom>
+          Classification Result
+        </Typography>
+        <Divider sx={{ mb: 2 }} />
+
+        {fraudScore !== null ? (
+          <>
+            <Typography variant="body1" sx={{ mb: 1 }}>
+              <strong>Fraud Score:</strong> {fraudScore}%
+            </Typography>
+            <Typography
+              variant="h6"
+              sx={{
+                color:
+                  fraudScore < 30
+                    ? "green"
+                    : fraudScore < 70
+                    ? "orange"
+                    : "red",
+              }}
+            >
+              {classification}
+            </Typography>
+          </>
+        ) : (
+          <Typography variant="body2" color="textSecondary">
+            Submit a transaction to see the result.
+          </Typography>
+        )}
+      </Paper>
+    </Box>
   );
 };
 
