@@ -47,7 +47,7 @@ function App() {
               <Route path="/team" element={<Team />} />
               <Route path="/transactionreview" element={<TransactionReview />} />
               <Route path="/transactionrecords" element={<TransactionRecords />} />
-              <Route path="/manualentry" element={<TransactionEntry />} />
+              <Route path="/TransactionEntry" element={<TransactionEntry />} />
               <Route path="/form" element={<Form />} />
               <Route path="/calendar" element={<Calendar />} />
               <Route path="/faq" element={<FAQ />} />

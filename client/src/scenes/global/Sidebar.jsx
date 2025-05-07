@@ -189,7 +189,7 @@ const SidebarComponent = () => {
             <Item title="Manage Team" to="/team" icon={<PeopleOutlinedIcon />} selected={selected} setSelected={setSelected} />
             <Item title="Transaction Review" to="/transactionreview" icon={<ContactsOutlinedIcon />} selected={selected} setSelected={setSelected} />
             <Item title="Transaction Records" to="/transactionrecords" icon={<ReceiptOutlinedIcon />} selected={selected} setSelected={setSelected} />
-            <Item title="Manual Transactions" to="/man" icon={<PeopleOutlinedIcon />} selected={selected} setSelected={setSelected} />
+            <Item title="Transaction Entry" to="/TransactionEntry" icon={<ReceiptOutlinedIcon />} selected={selected} setSelected={setSelected} />
 
             <Typography variant="h6" color={colors.grey[300]} sx={{ m: "15px 0 5px 20px" }}>
               Pages
