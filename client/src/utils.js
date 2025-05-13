@@ -1,15 +1,17 @@
-import { db } from "./firebase"; // Firebase Firestore instance
-import { doc, getDoc } from "firebase/firestore";
+import { supabase } from "./supabaseClient"; // Supabase client
 
-// Function to get user data from Firestore
+// Function to get user data from Supabase
 export const getUserProfile = async (userId) => {
-  const userDocRef = doc(db, "users", userId); // Assuming "users" collection in Firestore
-  const docSnap = await getDoc(userDocRef);
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", userId)
+    .single(); // Return a single user
 
-  if (docSnap.exists()) {
-    return docSnap.data(); // Return user data from Firestore
-  } else {
-    console.log("No such document!");
+  if (error) {
+    console.error("Error fetching user:", error.message);
     return null;
   }
+
+  return data;
 };

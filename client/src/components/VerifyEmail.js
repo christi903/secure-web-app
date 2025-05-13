@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import axios from 'axios';
+import { supabase } from '../supabaseClient'; // Ensure to import your Supabase client
 import { toast } from 'react-toastify';
 import {
   Container,
@@ -52,13 +52,18 @@ const VerifyEmail = () => {
       }
 
       try {
-        const res = await axios.get(`/api/auth/verify-email?token=${token}`);
-        if (res.data.success) {
-          setVerified(true);
-          toast.success(res.data.message);
+        // Verify the email with Supabase
+        const { error } = await supabase.auth.api.verifyEmail(token);
+
+        if (error) {
+          throw error;
         }
+
+        // If successful, set verified to true
+        setVerified(true);
+        toast.success('Email verified successfully!');
       } catch (error) {
-        toast.error(error.response?.data?.message || 'Verification failed');
+        toast.error(error.message || 'Verification failed');
       } finally {
         setVerifying(false);
       }

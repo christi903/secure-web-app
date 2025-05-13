@@ -5,7 +5,7 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 import { ColorModeContext, useMode } from './theme';
-import { useAuth } from './context/AuthContext'; // 🔑 Corrected path
+import { useAuth } from './context/AuthContext';
 
 // Auth Pages
 import Login from './components/Login';
@@ -20,6 +20,7 @@ import Dashboard from './scenes/dashboard';
 import Team from './scenes/team';
 import TransactionReview from './scenes/transactionreview';
 import TransactionRecords from './scenes/transactionrecords';
+import TransactionEntry from './scenes/TransactionEntry';
 import Form from './scenes/form';
 import Calendar from './scenes/calendar';
 import FAQ from './scenes/faq';
@@ -27,27 +28,28 @@ import Bar from './components/BarChart';
 import Pie from './components/PieChart';
 import Line from './components/LineChart';
 import GeographyChart from './components/GeographyChart';
-import TransactionEntry from './scenes/TransactionEntry';
-
 
 function App() {
   const [theme, colorMode] = useMode();
-  const { currentUser } = useAuth(); // ✅ Firebase currentUser object
+  const { currentUser, loading } = useAuth(); // 🧠 Supabase user + loading
+
+  // ⏳ Wait for Supabase to check session
+  if (loading) return null; // Or return a loader like <CircularProgress />
 
   return (
     <ColorModeContext.Provider value={colorMode}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <Routes>
-          {/* Authenticated Routes */}
           {currentUser ? (
+            // 🔐 Authenticated Routes
             <Route element={<MainLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/" element={<Navigate to="/dashboard" />} />
               <Route path="/team" element={<Team />} />
               <Route path="/transactionreview" element={<TransactionReview />} />
               <Route path="/transactionrecords" element={<TransactionRecords />} />
-              <Route path="/TransactionEntry" element={<TransactionEntry />} />
+              <Route path="/transactionentry" element={<TransactionEntry />} />
               <Route path="/form" element={<Form />} />
               <Route path="/calendar" element={<Calendar />} />
               <Route path="/faq" element={<FAQ />} />
@@ -55,11 +57,10 @@ function App() {
               <Route path="/pie" element={<Pie />} />
               <Route path="/line" element={<Line />} />
               <Route path="/geography" element={<GeographyChart />} />
-              {/* fallback if a user tries to go to auth page while logged in */}
               <Route path="*" element={<Navigate to="/dashboard" />} />
             </Route>
           ) : (
-            // Unauthenticated Routes
+            // 🚫 Unauthenticated Routes
             <>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />

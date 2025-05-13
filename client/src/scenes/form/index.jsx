@@ -1,20 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import {
   Box, Button, TextField, Typography, Avatar, Grid,
-  Stack, IconButton, CircularProgress, Alert
+  Stack, CircularProgress, Alert
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
-import { getAuth, signOut, deleteUser, updateProfile } from 'firebase/auth';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
-import { storage, db } from '../../firebase';
+import { supabase } from '../../supabaseClient';
 import { PhotoCamera } from '@mui/icons-material';
 
 export default function AccountSettings() {
   const theme = useTheme();
-  const auth = getAuth();
-  const user = auth.currentUser;
   const navigate = useNavigate();
 
   const [firstName, setFirstName] = useState('');
@@ -27,49 +22,44 @@ export default function AccountSettings() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const fetchUserData = async () => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-
-    try {
-      setEmail(user.email || 'Not set');
-
-      const userDocRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userDocRef);
-
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        setFirstName(userData.firstName || 'Not set');
-        setLastName(userData.lastName || 'Not set');
-        setRole(userData.role || 'Not set');
-
-        if (userData.profileURL) {
-          try {
-            const storageRef = ref(storage, userData.profileURL);
-            const downloadURL = await getDownloadURL(storageRef);
-            setPreviewURL(downloadURL);
-          } catch (err) {
-            console.warn('Could not load profile image:', err);
-            setPreviewURL('');
-          }
-        } else {
-          setPreviewURL('');
-        }
-      } else {
-        setError('User document not found in Firestore');
-      }
-    } catch (err) {
-      console.error('Error loading user data:', err);
-      setError('Failed to load user data');
-    }
-  };
-
   useEffect(() => {
+    const fetchUserData = async () => {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        navigate('/login');
+        return;
+      }
+
+      try {
+        setEmail(user.email || 'Not set');
+
+        const { data, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (userError) {
+          setError('User not found in the database');
+        } else {
+          setFirstName(data.first_name || 'Not set');
+          setLastName(data.last_name || 'Not set');
+          setRole(data.role || 'Not set');
+          // Add timestamp to URL to prevent caching issues
+          setPreviewURL(data.profile_url ? `${data.profile_url}?${Date.now()}` : '');
+        }
+      } catch (err) {
+        console.error('Error loading user data:', err);
+        setError('Failed to load user data');
+      }
+    };
+
     fetchUserData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [navigate]);
 
   const handleImageChange = (e) => {
     setError('');
@@ -94,29 +84,78 @@ export default function AccountSettings() {
   };
 
   const handleSave = async () => {
-    if (!user || !profileImage) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setError('User not authenticated');
+      return;
+    }
+
+    if (!profileImage) {
+      setError('Please select an image to upload');
+      return;
+    }
 
     setLoading(true);
     setError('');
     setSuccess('');
 
     try {
-      const timestamp = Date.now();
-      const storagePath = `user-profiles/${user.uid}/${timestamp}_profile.jpg`;
-      const storageRef = ref(storage, storagePath);
+      // 1. First delete any existing profile pictures for this user
+      try {
+        const { data: existingFiles, error: listError } = await supabase.storage
+          .from('profile-pictures')
+          .list(`${user.id}/`);
 
-      await uploadBytes(storageRef, profileImage);
-      const downloadURL = await getDownloadURL(storageRef);
+        if (!listError && existingFiles.length > 0) {
+          const filesToRemove = existingFiles.map(x => `${user.id}/${x.name}`);
+          await supabase.storage
+            .from('profile-pictures')
+            .remove(filesToRemove);
+        }
+      } catch (cleanupError) {
+        console.warn('Error cleaning up old profile pictures:', cleanupError);
+      }
 
-      await updateProfile(user, { photoURL: downloadURL });
+      // 2. Upload new profile picture
+      const fileExt = profileImage.name.split('.').pop();
+      const fileName = `profile.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
 
-      const userDocRef = doc(db, 'users', user.uid);
-      await setDoc(userDocRef, {
-        profileURL: storagePath,
-        updatedAt: new Date()
-      }, { merge: true });
+      const { error: uploadError } = await supabase.storage
+        .from('profile-pictures')
+        .upload(filePath, profileImage, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: profileImage.type,
+        });
 
-      await fetchUserData();
+      if (uploadError) throw uploadError;
+
+      // 3. Get public URL
+      const { data: urlData } = supabase
+        .storage
+        .from('profile-pictures')
+        .getPublicUrl(filePath);
+
+      const publicURL = urlData?.publicUrl;
+
+      if (!publicURL) throw new Error('Failed to get public URL');
+
+      // 4. Update user record with new URL
+      const { error: dbError } = await supabase
+        .from('users')
+        .update({
+          profile_url: publicURL,
+        })
+        .eq('id', user.id);
+
+      if (dbError) throw dbError;
+
+      // 5. Update UI with fresh URL (add timestamp to prevent caching)
+      setPreviewURL(`${publicURL}?${Date.now()}`);
       setProfileImage(null);
       setSuccess('Profile picture updated successfully!');
     } catch (err) {
@@ -128,20 +167,48 @@ export default function AccountSettings() {
   };
 
   const handleDeleteAccount = async () => {
-    if (!window.confirm('Are you sure you want to permanently delete your account?')) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    if (!window.confirm('Are you sure you want to permanently delete your account? This cannot be undone.')) return;
 
     try {
-      await deleteDoc(doc(db, 'users', user.uid));
-      await deleteUser(user);
+      // First delete profile picture if exists
+      try {
+        const { data: existingFiles } = await supabase.storage
+          .from('profile-pictures')
+          .list(`${user.id}/`);
+
+        if (existingFiles && existingFiles.length > 0) {
+          const filesToRemove = existingFiles.map(x => `${user.id}/${x.name}`);
+          await supabase.storage
+            .from('profile-pictures')
+            .remove(filesToRemove);
+        }
+      } catch (storageError) {
+        console.warn('Error deleting profile picture:', storageError);
+      }
+
+      // Then delete user record
+      await supabase.from('users').delete().eq('id', user.id);
+      
+      // Finally delete auth user (requires admin privileges)
+      const { error: deleteError } = await supabase.auth.admin.deleteUser(user.id);
+      
+      if (deleteError) throw deleteError;
+      
       navigate('/login');
     } catch (error) {
       console.error('Error deleting account:', error);
-      alert('Failed to delete account. You may need to reauthenticate.');
+      setError('Failed to delete account. Please contact support.');
     }
   };
 
   const handleForgotPassword = () => {
-    signOut(auth);
+    supabase.auth.signOut();
     navigate('/forgot-password');
   };
 
@@ -170,14 +237,18 @@ export default function AccountSettings() {
         <label htmlFor="upload-photo">
           <input
             type="file"
-            accept="image/jpeg,image/png,image/gif"
+            accept="image/jpeg,image/png,image/gif,image/webp"
             id="upload-photo"
             style={{ display: 'none' }}
             onChange={handleImageChange}
           />
-          <IconButton component="span">
-            <PhotoCamera sx={{ color: theme.palette.text.primary }} />
-          </IconButton>
+          <Button
+            component="span"
+            variant="outlined"
+            startIcon={<PhotoCamera />}
+          >
+            Change Photo
+          </Button>
         </label>
       </Stack>
 

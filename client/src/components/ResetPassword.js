@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import axios from 'axios';
+import { supabase } from '../supabaseClient'; // Ensure to import your Supabase client
 import { toast } from 'react-toastify';
 import {
   Container,
@@ -70,17 +70,19 @@ const ResetPassword = () => {
     setLoading(true);
 
     try {
-      const res = await axios.post('/api/auth/reset-password', {
-        token,
+      // Reset password using Supabase
+      const { error } = await supabase.auth.api.updateUser(token, {
         password,
       });
 
-      if (res.data.success) {
-        toast.success(res.data.message);
-        navigate('/login');
+      if (error) {
+        throw error;
       }
+
+      toast.success('Password has been reset successfully!');
+      navigate('/login');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'An error occurred');
+      toast.error(error.message || 'An error occurred');
     } finally {
       setLoading(false);
     }

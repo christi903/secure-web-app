@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../firebase'; // Make sure to export `auth` from your firebase config
+import { supabase } from '../supabaseClient'; // Ensure you import your Supabase client correctly
 import { toast } from 'react-toastify';
 
 import {
@@ -54,15 +53,14 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        formData.email,
-        formData.password
-      );
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
+      });
 
-      const user = userCredential.user;
+      if (error) throw error;
 
-      if (!user.emailVerified) {
+      if (!data.user.email_confirmed_at) {
         toast.warn('Please verify your email before logging in.');
         setLoading(false);
         return;
@@ -72,9 +70,9 @@ const Login = () => {
       navigate('/dashboard');
     } catch (error) {
       const msg =
-        error.code === 'auth/user-not-found'
+        error.message === 'User not found'
           ? 'No user found with this email.'
-          : error.code === 'auth/wrong-password'
+          : error.message === 'Invalid login credentials'
           ? 'Incorrect password.'
           : 'Login failed. Please try again.';
 

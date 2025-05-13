@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '../firebase'; // make sure this is correct
+import { supabase } from '../supabaseClient'; // import Supabase client
 import { toast } from 'react-toastify';
 import {
   Container,
@@ -37,12 +36,15 @@ const ForgotPassword = () => {
     setError('');
 
     try {
-      await sendPasswordResetEmail(auth, email);
+      const { error } = await supabase.auth.api.resetPasswordForEmail(email);
+      if (error) {
+        throw error;
+      }
       toast.success('Password reset email sent!');
       setEmail('');
     } catch (error) {
       const message =
-        error.code === 'auth/user-not-found'
+        error.message === 'User not found'
           ? 'No user found with this email'
           : error.message;
       setError(message);

@@ -1,11 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  createUserWithEmailAndPassword,
-  sendEmailVerification 
-} from 'firebase/auth';
-import { auth, db } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { supabase } from '../supabaseClient';
 import { toast } from 'react-toastify';
 import {
   Box,
@@ -78,31 +73,29 @@ const Register = () => {
     setLoading(true);
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        formData.email,
-        formData.password
-      );
-      const user = userCredential.user;
-
-      await sendEmailVerification(user);
-
-      // Create user document with consistent camelCase field names
-      await setDoc(doc(db, 'users', user.uid), {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
+      // Sign up with Supabase Auth and include metadata
+      const { error: authError } = await supabase.auth.signUp({
         email: formData.email,
-        role: formData.role,
-        profileURL: '', // Initialize empty profile URL
-        createdAt: new Date(),
-        updatedAt: new Date()
+        password: formData.password,
+        options: {
+          data: {  // This gets stored in raw_user_meta_data
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            role: formData.role,
+          }
+        }
       });
 
-      toast.success('Registration successful! Please verify your email.');
+      if (authError) {
+        throw authError;
+      }
+
+      // The PostgreSQL trigger will automatically create the user profile
+      toast.success('Registration successful! Please check your email for verification.');
       navigate('/login');
     } catch (error) {
       console.error('Registration error:', error);
-      toast.error(error.message || 'Registration failed');
+      toast.error(error.message || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -120,7 +113,6 @@ const Register = () => {
         px: 2 
       }}>
         <Grid container spacing={2} alignItems="center" justifyContent="center" sx={{ maxWidth: '1000px' }}>
-          
           {/* Logo Panel */}
           <Grid item xs={12} md={6} sx={{ 
             display: 'flex', 

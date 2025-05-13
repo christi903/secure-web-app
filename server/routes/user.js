@@ -1,50 +1,58 @@
 const express = require('express');
 const router = express.Router();
-const admin = require('../config/firebaseAdmin');
+const supabase = require('../config/supabaseAdmin');
 
 // GET user by UID
 router.get('/:uid', async (req, res) => {
+  const { uid } = req.params;
   try {
-    const { uid } = req.params;
-    const userRecord = await admin.auth().getUser(uid);
-    // You may want to fetch additional user info from your DB here
+    const { data: user, error } = await supabase.auth.admin.getUserById(uid);
+    if (error || !user) throw error;
+
+    const [first_name = '', last_name = ''] = (user.user_metadata?.full_name || '').split(' ');
     res.json({
-      first_name: userRecord.displayName ? userRecord.displayName.split(' ')[0] : '',
-      last_name: userRecord.displayName ? userRecord.displayName.split(' ')[1] || '' : '',
-      username: userRecord.email ? userRecord.email.split('@')[0] : '',
-      email: userRecord.email,
-      role: userRecord.customClaims ? userRecord.customClaims.role || '' : '',
-      profile_url: userRecord.photoURL || ''
+      first_name,
+      last_name,
+      username: user.email ? user.email.split('@')[0] : '',
+      email: user.email,
+      role: user.user_metadata?.role || '',
+      profile_url: user.user_metadata?.profile_url || ''
     });
-  } catch (error) {
+  } catch (err) {
+    console.error(err);
     res.status(404).json({ error: 'User not found' });
   }
 });
 
 // PUT update user info
 router.put('/:uid', async (req, res) => {
+  const { uid } = req.params;
+  const { first_name, last_name, profile_url } = req.body;
+
   try {
-    const { uid } = req.params;
-    const { first_name, last_name, profile_url } = req.body;
-    await admin.auth().updateUser(uid, {
-      displayName: `${first_name} ${last_name}`,
-      photoURL: profile_url
+    const { error } = await supabase.auth.admin.updateUserById(uid, {
+      user_metadata: {
+        full_name: `${first_name} ${last_name}`,
+        profile_url
+      }
     });
-    // You may want to update additional user info in your DB here
+    if (error) throw error;
     res.json({ message: 'User updated successfully' });
-  } catch (error) {
+  } catch (err) {
+    console.error(err);
     res.status(400).json({ error: 'Failed to update user' });
   }
 });
 
 // DELETE user
 router.delete('/:uid', async (req, res) => {
+  const { uid } = req.params;
   try {
-    const { uid } = req.params;
-    await admin.auth().deleteUser(uid);
-    // You may want to delete user from your DB here
+    const { error } = await supabase.auth.admin.deleteUser(uid);
+    if (error) throw error;
     res.json({ message: 'User deleted successfully' });
-  } catch (error) {
+  } catch (err) {
+    console.error(err);
     res.status(400).json({ error: 'Failed to delete user' });
   }
 });
