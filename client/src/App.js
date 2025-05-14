@@ -20,8 +20,7 @@ import Dashboard from './scenes/dashboard';
 import Team from './scenes/team';
 import TransactionReview from './scenes/transactionreview';
 import TransactionRecords from './scenes/transactionrecords';
-import TransactionEntry from './scenes/TransactionEntry';
-import Form from './scenes/form';
+import AccountSettings from './scenes/account_settings';
 import Calendar from './scenes/calendar';
 import FAQ from './scenes/faq';
 import Bar from './components/BarChart';
@@ -49,8 +48,7 @@ function App() {
               <Route path="/team" element={<Team />} />
               <Route path="/transactionreview" element={<TransactionReview />} />
               <Route path="/transactionrecords" element={<TransactionRecords />} />
-              <Route path="/transactionentry" element={<TransactionEntry />} />
-              <Route path="/form" element={<Form />} />
+              <Route path="/account_settings" element={<AccountSettings />} />
               <Route path="/calendar" element={<Calendar />} />
               <Route path="/faq" element={<FAQ />} />
               <Route path="/bar" element={<Bar />} />

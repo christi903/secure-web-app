@@ -1,16 +1,17 @@
-import AccordionSummary from "@mui/material/AccordionSummary";
-import AccordionDetails from "@mui/material/AccordionDetails";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import Typography from "@mui/material/Typography";
-import Accordion from "@mui/material/Accordion";
-import { Box, useTheme } from "@mui/material";
-import { tokens } from "../../theme";
-import Header from "../../components/Header";
+import AccordionSummary from "@mui/material/AccordionSummary"; // Accordion header
+import AccordionDetails from "@mui/material/AccordionDetails"; // Accordion content
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore"; // Expand icon
+import Typography from "@mui/material/Typography"; // Text component
+import Accordion from "@mui/material/Accordion"; // Accordion component
+import { Box, useTheme } from "@mui/material"; // Layout components
+import { tokens } from "../../theme"; // Theme colors
+import Header from "../../components/Header"; // Custom header component
 
 const FAQ = () => {
-  const theme = useTheme();
-  const colors = tokens(theme.palette.mode);
+  const theme = useTheme(); // Access MUI theme
+  const colors = tokens(theme.palette.mode); // Get theme colors
 
+  // FAQ data with questions and answers
   const faqItems = [
     {
       question: "What types of fraud do you detect in mobile apps?",
@@ -56,16 +57,20 @@ const FAQ = () => {
 
   return (
     <Box m="20px">
+      {/* Page header */}
       <Header title="FAQ" subtitle="Frequently Asked Questions Page" />
 
+      {/* FAQ items as expandable accordions */}
       {faqItems.map((item, index) => (
         <Accordion key={index} defaultExpanded={index === 0}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            {/* Question with colored text */}
             <Typography color={colors.greenAccent[500]} variant="h5">
               {item.question}
             </Typography>
           </AccordionSummary>
           <AccordionDetails>
+            {/* Answer text */}
             <Typography>
               {item.answer}
             </Typography>

@@ -1,65 +1,57 @@
-import { useState, useEffect } from "react";
-import LineChart from "../../components/LineChart";
-import BarChart from "../../components/BarChart";
-import GeographyChart from "../../components/GeographyChart";
-import StatBox from "../../components/StatBox";
-import ProgressCircle from "../../components/ProgressCircle";
-import { Box, Button, IconButton, Typography, useTheme } from "@mui/material";
-import { tokens } from "../../theme";
-import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
-import VerifiedIcon from '@mui/icons-material/Verified';
-import FlagCircleIcon from '@mui/icons-material/FlagCircle';
-import BlockIcon from '@mui/icons-material/Block';
-import PaidIcon from '@mui/icons-material/Paid';
-import Header from "../../components/Header";
-import { supabase } from "../../supabaseClient";
+import { useState, useEffect } from "react"; // React hooks
+import LineChart from "../../components/LineChart"; // Line chart component
+import BarChart from "../../components/BarChart"; // Bar chart component
+import GeographyChart from "../../components/GeographyChart"; // Map chart component
+import StatBox from "../../components/StatBox"; // Statistic box component
+import ProgressCircle from "../../components/ProgressCircle"; // Circular progress component
+import { Box, Button, IconButton, Typography, useTheme } from "@mui/material"; // Material UI components
+import { tokens } from "../../theme"; // Theme colors
+import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined"; // Download icon
+import VerifiedIcon from '@mui/icons-material/Verified'; // Verified icon
+import FlagCircleIcon from '@mui/icons-material/FlagCircle'; // Flag icon
+import BlockIcon from '@mui/icons-material/Block'; // Block icon
+import PaidIcon from '@mui/icons-material/Paid'; // Payment icon
+import Header from "../../components/Header"; // Custom header component
+import { supabase } from "../../supabaseClient"; // Supabase client
 
 const Dashboard = () => {
-  const theme = useTheme();
-  const colors = tokens(theme.palette.mode);
+  const theme = useTheme(); // Access MUI theme
+  const colors = tokens(theme.palette.mode); // Get theme colors
 
   // State for transaction statistics
   const [transactionStats, setTransactionStats] = useState({
-    total: 0,
-    legit: 0,
-    flagged: 0,
-    blocked: 0,
-    totalGrowth: "+0%",
-    legitGrowth: "+0%",
-    flaggedGrowth: "+0%",
-    blockedGrowth: "+0%"
+    total: 0, // Total transactions
+    legit: 0, // Legitimate transactions
+    flagged: 0, // Flagged transactions
+    blocked: 0, // Blocked transactions
+    totalGrowth: "+0%", // Growth percentage
+    legitGrowth: "+0%", // Legit growth
+    flaggedGrowth: "+0%", // Flagged growth
+    blockedGrowth: "+0%" // Blocked growth
   });
 
   // State for recent transactions
   const [recentTransactions, setRecentTransactions] = useState([]);
-  
-  // State for yearly total (for the line chart)
-  const [yearlyTotal, setYearlyTotal] = useState(0);
-  
-  // State for monthly data (for bar chart)
-  const [monthlyData, setMonthlyData] = useState([]);
-  
-  // State for geographic data
-  const [geoData, setGeoData] = useState([]);
-  
-  // Loading states
-  const [loading, setLoading] = useState({
-    stats: true,
-    recent: true,
-    charts: true
+  const [yearlyTotal, setYearlyTotal] = useState(0); // Yearly total for line chart
+  const [monthlyData, setMonthlyData] = useState([]); // Monthly data for bar chart
+  const [geoData, setGeoData] = useState([]); // Geographic data for map
+  const [loading, setLoading] = useState({ // Loading states
+    stats: true, // Stats loading
+    recent: true, // Recent transactions loading
+    charts: true // Charts loading
   });
 
   // Calculate progress values for the stat boxes
   const calculateProgress = (value, total) => {
-    if (total === 0) return 0;
-    return Math.min(Math.max(value / total, 0), 1).toFixed(2);
+    if (total === 0) return 0; // Prevent division by zero
+    return Math.min(Math.max(value / total, 0), 1).toFixed(2); // Clamp between 0-1
   };
 
-  // Fetch transaction statistics
+  // Fetch transaction statistics from Supabase
   useEffect(() => {
     const fetchTransactionStats = async () => {
       try {
-        setLoading(prev => ({ ...prev, stats: true }));
+        setLoading(prev => ({ ...prev, stats: true })); // Set loading state
         
         // Get total count of transactions
         const { count: totalCount, error: totalError } = await supabase
@@ -93,7 +85,6 @@ const Dashboard = () => {
         if (blockedError) throw blockedError;
 
         // Fetch previous period data for growth calculation
-        // This is a simplified approach - you'd typically compare with last month/quarter
         const oneMonthAgo = new Date();
         oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
         
@@ -112,12 +103,9 @@ const Dashboard = () => {
         };
         
         const totalGrowth = calculateGrowth(totalCount, prevTotal);
-        
-        // For simplicity, using the same growth calculation method for all stats
-        // In a real app, you'd fetch previous period data for each category
-        const legitGrowth = calculateGrowth(legitCount, prevTotal * 0.9); // Assuming 90% legitimate in previous period
-        const flaggedGrowth = calculateGrowth(flaggedCount, prevTotal * 0.09); // Assuming 9% flagged in previous period
-        const blockedGrowth = calculateGrowth(blockedCount, prevTotal * 0.01); // Assuming 1% blocked in previous period
+        const legitGrowth = calculateGrowth(legitCount, prevTotal * 0.9); // Estimated previous legit
+        const flaggedGrowth = calculateGrowth(flaggedCount, prevTotal * 0.09); // Estimated previous flagged
+        const blockedGrowth = calculateGrowth(blockedCount, prevTotal * 0.01); // Estimated previous blocked
         
         // Update state with fetched data
         setTransactionStats({
@@ -143,7 +131,7 @@ const Dashboard = () => {
     fetchTransactionStats();
   }, []);
 
-  // Fetch recent transactions
+  // Fetch recent transactions from Supabase
   useEffect(() => {
     const fetchRecentTransactions = async () => {
       try {
@@ -169,8 +157,8 @@ const Dashboard = () => {
         
         // Transform data to match the expected format
         const formattedTransactions = data.map(tx => ({
-          txId: tx.id || tx.transaction_id, // Try both possible field names
-          user: tx.user_id || tx.user || "User", // Try different possible field names or use default
+          txId: tx.id || tx.transaction_id,
+          user: tx.user_id || tx.user || "User",
           date: tx.created_at ? new Date(tx.created_at).toLocaleDateString() : new Date().toLocaleDateString(),
           cost: tx.amount ? tx.amount.toFixed(2) : "0.00",
           status: tx.status
@@ -180,8 +168,7 @@ const Dashboard = () => {
         setRecentTransactions(formattedTransactions);
       } catch (error) {
         console.error("Error fetching recent transactions:", error);
-        // Set empty array to avoid undefined errors
-        setRecentTransactions([]);
+        setRecentTransactions([]); // Set empty array on error
       } finally {
         setLoading(prev => ({ ...prev, recent: false }));
       }
@@ -190,7 +177,7 @@ const Dashboard = () => {
     fetchRecentTransactions();
   }, []);
 
-  // Fetch data for charts
+  // Fetch data for charts from Supabase
   useEffect(() => {
     const fetchChartData = async () => {
       try {
@@ -210,7 +197,7 @@ const Dashboard = () => {
         if (monthlyError) throw monthlyError;
         
         // Process monthly data
-        const monthlyTotals = Array(12).fill(0);
+        const monthlyTotals = Array(12).fill(0); // Initialize array for 12 months
         monthlyData?.forEach(tx => {
           const month = new Date(tx.created_at).getMonth();
           monthlyTotals[month] += tx.amount || 0;
@@ -261,15 +248,13 @@ const Dashboard = () => {
 
   // Handle report download
   const handleDownloadReport = () => {
-    // Implement download functionality here
     console.log("Downloading report...");
-    // This could be an API call to generate a report or a direct export function
-    alert("Report download started!");
+    alert("Report download started!"); // Placeholder for actual download functionality
   };
 
   return (
     <Box m="20px">
-      {/* HEADER */}
+      {/* HEADER SECTION */}
       <Box display="flex" justifyContent="space-between" alignItems="center">
         <Header title="DASHBOARD" subtitle="Welcome to your dashboard" />
         <Box>
@@ -289,14 +274,14 @@ const Dashboard = () => {
         </Box>
       </Box>
 
-      {/* GRID & CHARTS */}
+      {/* GRID & CHARTS SECTION */}
       <Box
         display="grid"
         gridTemplateColumns="repeat(12, 1fr)"
         gridAutoRows="140px"
         gap="20px"
       >
-        {/* 🟨🟨🟨🟨🟨🟨 ROW 1 🟨🟨🟨🟨🟨🟨 */}
+        {/* ROW 1: STAT BOXES */}
         <Box
           gridColumn="span 3"
           backgroundColor={colors.primary[400]}
@@ -377,7 +362,7 @@ const Dashboard = () => {
           />
         </Box>
 
-        {/* 🟨🟨🟨🟨🟨🟨 ROW 2 🟨🟨🟨🟨🟨🟨 */}
+        {/* ROW 2: LINE CHART AND RECENT TRANSACTIONS */}
         <Box
           gridColumn="span 8"
           gridRow="span 2"
@@ -480,7 +465,7 @@ const Dashboard = () => {
           )}
         </Box>
 
-        {/* 🟨🟨🟨🟨🟨🟨 ROW 3 🟨🟨🟨🟨🟨🟨 */}
+        {/* ROW 3: PROGRESS CIRCLE, BAR CHART AND GEOGRAPHY CHART */}
         <Box
           gridColumn="span 4"
           gridRow="span 2"
