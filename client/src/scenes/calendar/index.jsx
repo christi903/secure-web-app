@@ -3,7 +3,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from "@fullcalendar/list";
-import { Box, List, ListItem, ListItemText, Typography, useTheme } from "@mui/material";
+import { Box, Grid, Card, CardContent, Typography, useTheme, Divider } from "@mui/material";
 import { tokens } from "../../theme";
 import Header from "../../components/Header";
 import { useState } from "react";
@@ -160,85 +160,83 @@ const Calendars = () => {
     <Box m="20px">
       <Header title="Fraud Detection Calendar" subtitle="Critical events and monitoring schedule" />
 
-      <Box display="flex" justifyContent="space-between">
-        {/* CALENDAR SIDEBAR */}
-        <Box
-          p="15px"
-          flex="1 1 20%"
-          borderRadius="4px"
-          backgroundColor={getColor('primary', 400)}
-        >
-          <Typography variant="h5">Fraud Events</Typography>
-          <List>
-            {currentEvents.map((event) => (
-              <ListItem
-                key={event.id}
-                sx={{
-                  margin: "10px 0",
-                  borderRadius: "2px",
-                  backgroundColor: event.color || getColor('green'),
+      {/* CALENDAR */}
+      <Box mb="20px">
+        <FullCalendar
+          height="65vh"
+          editable={true}
+          selectable={true}
+          selectMirror={true}
+          dayMaxEvents={true}
+          select={handleDateClick}
+          initialView="dayGridMonth"
+          eventClick={handleEventClick}
+          eventsSet={(events) => setCurrentEvents(events)}
+          plugins={[
+            dayGridPlugin,
+            timeGridPlugin,
+            interactionPlugin,
+            listPlugin,
+          ]}
+          initialEvents={fraudEvents}
+          headerToolbar={{
+            left: "prev,next today",
+            center: "title",
+            right: "dayGridMonth,timeGridWeek,timeGridDay,listMonth",
+          }}
+          eventContent={(eventInfo) => (
+            <div style={{ 
+              fontWeight: 'bold', 
+              fontSize: '0.85em',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              <i className="fas fa-shield-alt" style={{ marginRight: '5px' }}></i>
+              {shortenTitle(eventInfo.event.title)}
+            </div>
+          )}
+        />
+      </Box>
+
+      <Divider sx={{ my: 3 }} />
+
+      {/* FRAUD EVENTS LIST BELOW CALENDAR */}
+      <Box>
+        <Typography variant="h5" gutterBottom>Fraud Events</Typography>
+        <Grid container spacing={2}>
+          {currentEvents.map((event) => (
+            <Grid item xs={12} sm={6} md={4} lg={3} key={event.id}>
+              <Card 
+                sx={{ 
+                  height: '100%',
+                  borderLeft: `4px solid ${event.color || getColor('green')}`,
+                  '&:hover': {
+                    boxShadow: 3,
+                    transform: 'translateY(-2px)',
+                    transition: 'all 0.3s ease'
+                  }
                 }}
               >
-                <ListItemText
-                  primary={event.title}
-                  secondary={
-                    <Box>
-                      <Typography variant="body2">
-                        {formatDate(event.start, {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </Typography>
-                      <Typography variant="caption" sx={{ display: 'block', marginTop: '5px' }}>
-                        {event.extendedProps?.description || event.title}
-                      </Typography>
-                    </Box>
-                  }
-                />
-              </ListItem>
-            ))}
-          </List>
-        </Box>
-
-        {/* CALENDAR */}
-        <Box flex="1 1 100%" ml="15px">
-          <FullCalendar
-            height="75vh"
-            editable={true}
-            selectable={true}
-            selectMirror={true}
-            dayMaxEvents={true}
-            select={handleDateClick}
-            initialView="dayGridMonth"
-            eventClick={handleEventClick}
-            eventsSet={(events) => setCurrentEvents(events)}
-            plugins={[
-              dayGridPlugin,
-              timeGridPlugin,
-              interactionPlugin,
-              listPlugin,
-            ]}
-            initialEvents={fraudEvents}
-            headerToolbar={{
-              left: "prev,next today",
-              center: "title",
-              right: "dayGridMonth,timeGridWeek,timeGridDay,listMonth",
-            }}
-            eventContent={(eventInfo) => (
-              <div style={{ 
-                fontWeight: 'bold', 
-                fontSize: '0.85em',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}>
-                <i className="fas fa-shield-alt" style={{ marginRight: '5px' }}></i>
-                {shortenTitle(eventInfo.event.title)}
-              </div>
-            )}
-          />
-        </Box>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    {event.title}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    {formatDate(event.start, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </Typography>
+                  <Typography variant="body2">
+                    {event.extendedProps?.description || event.title}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
       </Box>
     </Box>
   );
