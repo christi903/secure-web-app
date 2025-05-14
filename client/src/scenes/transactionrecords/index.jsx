@@ -1,29 +1,124 @@
-import React, { useState } from 'react';
-import { 
-  Box, 
-  Typography, 
-  useTheme, 
-  Modal, 
-  Fade, 
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Box,
+  Typography,
+  useTheme,
+  Modal,
+  Fade,
   Backdrop,
   Button,
   Menu,
   MenuItem,
   TextField,
-  InputAdornment
+  InputAdornment,
+  CircularProgress,
+  Chip,
+  Alert,
+  Snackbar,
+  IconButton
 } from "@mui/material";
-import { DataGrid } from "@mui/x-data-grid";
+import { DataGrid, GridToolbar } from "@mui/x-data-grid";
 import { tokens } from "../../theme";
 import Header from "../../components/Header";
 import PhoneIphoneIcon from '@mui/icons-material/PhoneIphone';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import CurrencyExchangeIcon from '@mui/icons-material/CurrencyExchange';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import CloseIcon from '@mui/icons-material/Close';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import DownloadIcon from '@mui/icons-material/Download';
 import { motion } from "framer-motion";
+import { supabase } from '../../supabaseClient';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
+import Papa from 'papaparse';
+
+// Status options with colors
+const STATUS_CONFIG = {
+  BLOCKED: { label: 'Blocked', color: 'error' },
+  LEGIT: { label: 'Legit', color: 'success' },
+  FLAGGED: { label: 'Flagged', color: 'warning' },
+  COMPLETED: { label: 'Completed', color: 'success' },
+  PENDING: { label: 'Pending', color: 'warning' },
+  FAILED: { label: 'Failed', color: 'error' },
+  CONFIRMED: { label: 'Confirmed', color: 'info' }
+};
 
 const TransactionHistory = () => {
   const theme = useTheme();
-  const colors = tokens(theme.palette.mode);
+  
+  // Safely get colors with comprehensive fallbacks
+  const colorTokens = tokens(theme.palette.mode);
+  const colors = {
+    grey: colorTokens?.grey || {
+      100: "#f5f5f5",
+      200: "#eeeeee",
+      300: "#e0e0e0",
+      400: "#bdbdbd",
+      500: "#9e9e9e",
+      600: "#757575",
+      700: "#616161",
+      800: "#424242",
+      900: "#212121",
+    },
+    primary: colorTokens?.primary || {
+      100: "#d0d1d5",
+      200: "#a1a4ab",
+      300: "#727681",
+      400: "#434957", // Key color that was missing
+      500: "#141b2d",
+      600: "#101624",
+      700: "#0c101b",
+      800: "#080b12",
+      900: "#040509",
+    },
+    greenAccent: colorTokens?.greenAccent || {
+      100: "#dbf5ee",
+      200: "#b7ebde",
+      300: "#94e2cd",
+      400: "#70d8bd",
+      500: "#4cceac",
+      600: "#3da58a",
+      700: "#2e7c67",
+      800: "#1e5245",
+      900: "#0f2922",
+    },
+    blueAccent: colorTokens?.blueAccent || {
+      100: "#e1e2fe",
+      200: "#c3c6fd",
+      300: "#a4a9fc",
+      400: "#868dfb",
+      500: "#6870fa",
+      600: "#535ac8",
+      700: "#3e4396",
+      800: "#2a2d64",
+      900: "#151632",
+    },
+    redAccent: colorTokens?.redAccent || {
+      100: "#ffcccc",
+      200: "#ff9999",
+      300: "#ff6666",
+      400: "#ff3333",
+      500: "#ff6b6b",
+      600: "#e05555",
+      700: "#c13f3f",
+      800: "#992b2b",
+      900: "#661818",
+    },
+    searchBar: colorTokens?.searchBar || {
+      100: "#f5f5f5",
+      200: "#eeeeee",
+      300: "#e0e0e0",
+      400: "#bdbdbd",
+      500: "#9e9e9e",
+      600: "#757575",
+      700: "#616161",
+      800: "#424242",
+      900: "#212121",
+    }
+  };
+
+  // State declarations
   const [open, setOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [anchorEl, setAnchorEl] = useState(null);
@@ -32,16 +127,53 @@ const TransactionHistory = () => {
     type: '',
     status: '',
     minAmount: '',
-    maxAmount: ''
+    maxAmount: '',
+    fraudOnly: false
   });
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+  const [paginationModel, setPaginationModel] = useState({
+    page: 0,
+    pageSize: 10,
+  });
+  const [rowCount, setRowCount] = useState(0);
 
-  const handleOpen = (transaction) => {
-    setSelectedTransaction(transaction);
-    setOpen(true);
-  };
+  // Moved generateDescription before formatTransaction to fix the reference error
+  const generateDescription = useCallback((transaction) => {
+    const actions = {
+      TRANSFER: 'Transfer',
+      PAYMENT: 'Payment',
+      WITHDRAWAL: 'Withdrawal',
+      DEPOSIT: 'Deposit'
+    };
+    const action = actions[transaction.transaction_type] || 'Transaction';
+    return `${action} from ${transaction.initiator_id} to ${transaction.recipient_id}`;
+  }, []);
 
-  const handleClose = () => setOpen(false);
+  const formatTransaction = useCallback((transaction) => ({
+    id: transaction.id,
+    date: new Date(transaction.transaction_time).toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }),
+    transactionId: `TRX-${transaction.id.toString().slice(0, 8).toUpperCase()}`,
+    type: transaction.transaction_type,
+    amount: transaction.amount,
+    status: transaction.status || 'PENDING',
+    description: transaction.description || generateDescription(transaction),
+    sender: transaction.sender_phone || `+255${Math.floor(100000000 + Math.random() * 900000000)}`,
+    receiver: transaction.recipient_phone || `+255${Math.floor(100000000 + Math.random() * 900000000)}`,
+    is_fraud: transaction.is_fraud,
+    fraud_probability: transaction.fraud_probability,
+    fraud_alert_severity: transaction.fraud_alert_severity
+  }), [generateDescription]);
 
+  // Handler functions
   const handleFilterClick = (event) => {
     setAnchorEl(event.currentTarget);
   };
@@ -50,8 +182,8 @@ const TransactionHistory = () => {
     setAnchorEl(null);
   };
 
-  const handleFilterChange = (field) => (event) => {
-    setFilters({ ...filters, [field]: event.target.value });
+  const handleFilterChange = (prop) => (event) => {
+    setFilters({ ...filters, [prop]: event.target.value });
   };
 
   const clearFilters = () => {
@@ -60,21 +192,120 @@ const TransactionHistory = () => {
       type: '',
       status: '',
       minAmount: '',
-      maxAmount: ''
+      maxAmount: '',
+      fraudOnly: false
     });
   };
 
+  const handleOpen = (transaction) => {
+    setSelectedTransaction(transaction);
+    setOpen(true);
+  };
+
+  const handleClose = () => {
+    setOpen(false);
+  };
+
+  const fetchTransactions = useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      let query = supabase
+        .from('transactions')
+        .select('*', { count: 'exact' })
+        .order('transaction_time', { ascending: false });
+
+      if (filters.search) {
+        query = query.or(`description.ilike.%${filters.search}%,initiator_id.ilike.%${filters.search}%,recipient_id.ilike.%${filters.search}%`);
+      }
+      if (filters.type) {
+        query = query.eq('transaction_type', filters.type);
+      }
+      if (filters.status) {
+        query = query.eq('status', filters.status);
+      }
+      if (filters.minAmount) {
+        query = query.gte('amount', filters.minAmount);
+      }
+      if (filters.maxAmount) {
+        query = query.lte('amount', filters.maxAmount);
+      }
+      if (filters.fraudOnly) {
+        query = query.eq('is_fraud', true);
+      }
+
+      const { data, count, error } = await query
+        .range(
+          paginationModel.page * paginationModel.pageSize,
+          (paginationModel.page + 1) * paginationModel.pageSize - 1
+        );
+
+      if (error) throw error;
+
+      setTransactions(data.map(formatTransaction));
+      setRowCount(count || 0);
+    } catch (err) {
+      setError(err.message);
+      setSnackbar({ open: true, message: `Error loading transactions: ${err.message}`, severity: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [filters, paginationModel, formatTransaction]);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
+
+  useEffect(() => {
+    const subscription = supabase
+      .channel('transactions')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'transactions'
+      }, (payload) => {
+        fetchTransactions();
+        if (payload.eventType === 'INSERT') {
+          const newTransaction = formatTransaction(payload.new);
+          setSnackbar({
+            open: true,
+            message: `New transaction: ${newTransaction.transactionId}`,
+            severity: 'info'
+          });
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [fetchTransactions, formatTransaction]);
+
+  const exportToXLSX = () => {
+    const worksheet = XLSX.utils.json_to_sheet(transactions);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
+    XLSX.writeFile(workbook, 'transactions.xlsx');
+  };
+  
+  const exportToCSV = () => {
+    const csv = Papa.unparse(transactions);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    saveAs(blob, 'transactions.csv');
+  };
+
   const columns = [
-    { field: "date", headerName: "Date/Time", flex: 1 },
-    { field: "transactionId", headerName: "Transaction ID", flex: 1 },
-    { field: "type", headerName: "Type", flex: 1 },
+    { field: "date", headerName: "Date/Time", flex: 1, minWidth: 180 },
+    { field: "transactionId", headerName: "Transaction ID", flex: 1, minWidth: 150 },
+    { field: "type", headerName: "Type", flex: 1, minWidth: 120 },
     { 
       field: "amount", 
       headerName: "Amount (TZS)", 
       flex: 1,
-      renderCell: ({ row: { amount } }) => (
+      minWidth: 120,
+      renderCell: ({ row }) => (
         <Typography fontWeight="bold">
-          {amount.toLocaleString()} TZS
+          {row.amount.toLocaleString()} TZS
         </Typography>
       )
     },
@@ -82,255 +313,33 @@ const TransactionHistory = () => {
       field: "status",
       headerName: "Status",
       flex: 1,
-      renderCell: ({ row: { status } }) => {
-        let color;
-        switch (status) {
-          case "Completed":
-            color = "green";
-            break;
-          case "Pending":
-            color = "orange";
-            break;
-          case "Failed":
-            color = "red";
-            break;
-          case "Confirmed":
-            color = "goldenrod";
-            break;
-          default:
-            color = "gray";
-        }
-        return <Typography color={color}>{status}</Typography>;
+      minWidth: 120,
+      renderCell: ({ row }) => {
+        const statusConfig = STATUS_CONFIG[row.status.toUpperCase()] || STATUS_CONFIG.PENDING;
+        return (
+          <Chip 
+            label={statusConfig.label} 
+            color={statusConfig.color}
+            variant="outlined"
+            size="small"
+          />
+        );
       },
     },
-    { field: "description", headerName: "Description", flex: 2 },
+    { 
+      field: "description", 
+      headerName: "Description", 
+      flex: 2, 
+      minWidth: 200,
+      renderCell: ({ row }) => (
+        <Typography variant="body2" sx={{ whiteSpace: 'normal', lineHeight: '1.2' }}>
+          {row.description}
+        </Typography>
+      )
+    },
   ];
 
-  // Enhanced transaction data with complete sender/receiver info
-  const transactionRecords = [
-    { 
-      id: 1, 
-      date: "Apr 02, 2025, 09:30 AM", 
-      transactionId: "TRX-12345", 
-      type: "Mobile Payment", 
-      amount: 12500.0, 
-      status: "Completed", 
-      description: "Payment from +255693641590 (John M.) to +255784567890 (Mary K.) for plumbing services",
-      sender: "+255693641590 (John M.)",
-      receiver: "+255784567890 (Mary K.)"
-    },
-    { 
-      id: 2, 
-      date: "Apr 02, 2025, 02:20 PM", 
-      transactionId: "TRX-12346", 
-      type: "Mobile Deposit", 
-      amount: 25000.0, 
-      status: "Completed", 
-      description: "Deposit from CRDB Bank (A/C 111234544567) to +255713456789 (James Peter)",
-      sender: "CRDB Bank (A/C 111234544567)",
-      receiver: "+255713456789 (James Peter)"
-    },
-    { 
-      id: 3, 
-      date: "Apr 01, 2025, 11:45 AM", 
-      transactionId: "TRX-12347", 
-      type: "Mobile Withdrawal", 
-      amount: 1000000.0, 
-      status: "Pending", 
-      description: "Withdrawal from +255713456789 (Elizabeth Joseph) to NMB Bank (A/C 1113458910)",
-      sender: "+255713456789 (Elizabeth Joseph)",
-      receiver: "NMB Bank (A/C 1113458910)"
-    },
-    { 
-      id: 4, 
-      date: "Mar 30, 2025, 04:15 PM", 
-      transactionId: "TRX-12348", 
-      type: "Mobile Refund", 
-      amount: 76000.0, 
-      status: "Completed", 
-      description: "Refund from Jumia TZ (+255766789012) to +255713456789 (Frank Joseph) for cancelled phone order",
-      sender: "Jumia TZ (+255766789012)",
-      receiver: "+255713456789 (Frank Joseph)"
-    },
-    { 
-      id: 5, 
-      date: "Mar 28, 2025, 10:10 AM", 
-      transactionId: "TRX-12349", 
-      type: "Mobile Transfer", 
-      amount: 12000.0, 
-      status: "Confirmed", 
-      description: "Transfer from +255713456789 (Anna Japhet) to +255678909871 (Robert Shabaan.) for rent contribution",
-      sender: "+255713456789 (Anna Japhet)",
-      receiver: "+255678909871 (Robert Shabaan.)"
-    },
-    { 
-      id: 6, 
-      date: "Mar 25, 2025, 01:45 PM", 
-      transactionId: "TRX-12350", 
-      type: "Mobile Payment", 
-      amount: 42000.0, 
-      status: "Failed", 
-      description: "Failed payment from +255713456789 (Tatu Juma) to Zuu Tronics LTD (+255752345678) for headphones",
-      sender: "+255713456789 (Tatu Juma)",
-      receiver: "Zuu Tronics LTD (+255752345678)"
-    },
-    { 
-      id: 7, 
-      date: "Mar 24, 2025, 11:30 AM", 
-      transactionId: "TRX-12351", 
-      type: "Mobile Deposit", 
-      amount: 60000.0, 
-      status: "Completed", 
-      description: "Cash deposit from Agent 5482 (Happiness Simon) to +255713456789 (Mgonja Himo)",
-      sender: "Agent 5482 (Happiness Simon)",
-      receiver: "+255713456789 (Mgonja Himo)"
-    },
-    { 
-      id: 8, 
-      date: "Mar 23, 2025, 05:45 PM", 
-      transactionId: "TRX-12352", 
-      type: "Mobile Transfer", 
-      amount: 33000.0, 
-      status: "Confirmed", 
-      description: "Transfer from +255713456789 (Anna Michael) to +255662778899 (Sarah Michael) for business supplies",
-      sender: "+255713456789 (Anna Michael)",
-      receiver: "+255662778899 (Sarah Michael)"
-    },
-    { 
-      id: 9, 
-      date: "Mar 22, 2025, 02:00 PM", 
-      transactionId: "TRX-12353", 
-      type: "Mobile Refund", 
-      amount: 50000.0, 
-      status: "Completed", 
-      description: "Refund from DStv TZ (+255673445566) to +255713456789 (Daudi Selemani) for subscription overpayment",
-      sender: "DStv TZ (+255673445566)",
-      receiver: "+255713456789 (Daudi Selemani)"
-    },
-    { 
-      id: 10, 
-      date: "Mar 21, 2025, 08:20 AM", 
-      transactionId: "TRX-12354", 
-      type: "Mobile Payment", 
-      amount: 29300.0, 
-      status: "Failed", 
-      description: "Failed Netflix payment from +255713456789 (Dennis Joseph) to Netflix EMEA (+442079836000)",
-      sender: "+255713456789 (Dennis Joseph)",
-      receiver: "Netflix EMEA (+442079836000)"
-    },
-    { 
-      id: 11, 
-      date: "Mar 20, 2025, 01:00 PM", 
-      transactionId: "TRX-12355", 
-      type: "Mobile Deposit", 
-      amount: 450000.0, 
-      status: "Completed", 
-      description: "Salary deposit from ABC Company Ltd to +255713456789 (Juma Shabaan)",
-      sender: "ABC Company Ltd",
-      receiver: "+255713456789 (Juma Shabaan)"
-    },
-    { 
-      id: 12, 
-      date: "Mar 19, 2025, 10:15 AM", 
-      transactionId: "TRX-12356", 
-      type: "Peer Transfer", 
-      amount: 75000.0, 
-      status: "Confirmed", 
-      description: "Transfer from +255713456789 (Fred Emmanuel) to +255713887766 (James Pickford) for weekend trip",
-      sender: "+255713456789 (Fred Emmanuel)",
-      receiver: "+255713887766 (James Pickford)"
-    },
-    { 
-      id: 13, 
-      date: "Mar 18, 2025, 03:00 PM", 
-      transactionId: "TRX-12357", 
-      type: "Mobile Withdrawal", 
-      amount: 120000.0, 
-      status: "Pending", 
-      description: "Withdrawal from +255713456789 (Shabaan Msele) to Visa card 1112344567 (NMB Bank)",
-      sender: "+255713456789 (Shabaan Msele)",
-      receiver: "Visa card 1112344567 (NMB Bank)"
-    },
-    { 
-      id: 14, 
-      date: "Mar 17, 2025, 09:45 AM", 
-      transactionId: "TRX-12358", 
-      type: "Mobile Payment", 
-      amount: 59000.0, 
-      status: "Completed", 
-      description: "Utility payment from +255713456789 (Hassan Mwampamba) to DAWASCO (+255222111000) for water bill",
-      sender: "+255713456789 (Hassan Mwampamba)",
-      receiver: "DAWASCO (+255222111000)"
-    },
-    { 
-      id: 15, 
-      date: "Mar 16, 2025, 06:10 PM", 
-      transactionId: "TRX-12359", 
-      type: "Mobile Refund", 
-      amount: 80000.0, 
-      status: "Completed", 
-      description: "Refund from Kilimall (+255767890123) to +255713456789 (David Asante) for returned shoes",
-      sender: "Kilimall (+255767890123)",
-      receiver: "+255713456789 (David Asante)"
-    },
-    { 
-      id: 16, 
-      date: "Mar 15, 2025, 12:00 PM", 
-      transactionId: "TRX-12360", 
-      type: "Mobile Deposit", 
-      amount: 35000.0, 
-      status: "Completed", 
-      description: "Cash deposit from Mobile Money Agent 1234 (Ali Hassan) to +255713456789 (Happiness Samwel)",
-      sender: "Agent 1234 (Ali Hassan)",
-      receiver: "+255713456789 (Happiness Samwel)"
-    },
-    { 
-      id: 17, 
-      date: "Mar 14, 2025, 11:00 AM", 
-      transactionId: "TRX-12361", 
-      type: "Mobile Payment", 
-      amount: 6500000.0, 
-      status: "Failed", 
-      description: "Failed car payment from +255713456789 (Jane Manase) to Jackline Clo-Store (+255788698702)",
-      sender: "+255713456789 (Jane Manase)",
-      receiver: "Jackline Clo-Store (+255788698702)"
-    },
-    { 
-      id: 18, 
-      date: "Mar 13, 2025, 02:30 PM", 
-      transactionId: "TRX-12362", 
-      type: "Mobile Transfer", 
-      amount: 210000.0, 
-      status: "Confirmed", 
-      description: "Transfer from +255713456789 (Sadiki Mwamba) to +255693547890 (Juliana Bashasha) for medical bills",
-      sender: "+255713456789 (Sadiki Mwamba)",
-      receiver: "+255693547890 (Juliana Bashasha)"
-    },
-    { 
-      id: 19, 
-      date: "Mar 12, 2025, 09:00 AM", 
-      transactionId: "TRX-12363", 
-      type: "Mobile Refund", 
-      amount: 33700.0, 
-      status: "Completed", 
-      description: "Refund from Vodacom TZ (+255673445566) to +255713456789 (Your Account) for data bundle overcharge",
-      sender: "Vodacom TZ (+255673445566)",
-      receiver: "+255713456789 (Your Account)"
-    },
-    { 
-      id: 20, 
-      date: "Mar 11, 2025, 04:45 PM", 
-      transactionId: "TRX-12364", 
-      type: "Mobile Withdrawal", 
-      amount: 1900000.0, 
-      status: "Pending", 
-      description: "Withdrawal from +255713456789 (Anna Sibisi) to Mastercard 11167893210 (CRDB Bank)",
-      sender: "+255713456789 (Anna Sibisi)",
-      receiver: "Mastercard 11167893210 (CRDB Bank)"
-    }
-  ];
-
-  const filteredTransactions = transactionRecords.filter(transaction => {
+  const filteredTransactions = transactions.filter(transaction => {
     return (
       (filters.search === '' || 
        transaction.transactionId.toLowerCase().includes(filters.search.toLowerCase()) || 
@@ -338,128 +347,224 @@ const TransactionHistory = () => {
       (filters.type === '' || transaction.type === filters.type) &&
       (filters.status === '' || transaction.status === filters.status) &&
       (filters.minAmount === '' || transaction.amount >= Number(filters.minAmount)) &&
-      (filters.maxAmount === '' || transaction.amount <= Number(filters.maxAmount))
+      (filters.maxAmount === '' || transaction.amount <= Number(filters.maxAmount)) &&
+      (!filters.fraudOnly || transaction.is_fraud)
     );
   });
 
+  const handleRefresh = () => {
+    fetchTransactions();
+    setSnackbar({ open: true, message: 'Transactions refreshed', severity: 'success' });
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar(prev => ({ ...prev, open: false }));
+  };
+
   return (
     <Box m="20px">
-      <Header title="TRANSACTION HISTORY" subtitle="List of recent mobile transactions" />
-      <Box display="flex" justifyContent="flex-end" mb={2}>
-        <Button
-          variant="contained"
-          color="secondary"
-          startIcon={<FilterListIcon />}
-          onClick={handleFilterClick}
-          sx={{
-            backgroundColor: colors.blueAccent[600],
-            '&:hover': {
-              backgroundColor: colors.blueAccent[700]
-            }
-          }}
+      <Header 
+        title="TRANSACTION RECORDS" 
+        subtitle="Detailed list of financial transactions"
+        rightContent={
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              variant="outlined"
+              startIcon={<RefreshIcon />}
+              onClick={handleRefresh}
+              disabled={loading}
+              sx={{
+                color: colors.grey[100],
+                borderColor: colors.grey[700],
+                '&:hover': {
+                  borderColor: colors.blueAccent[500]
+                }
+              }}
+            >
+              Refresh
+            </Button>
+            <Button
+              variant="contained"
+              color="secondary"
+              startIcon={<DownloadIcon />}
+              onClick={exportToXLSX}
+              sx={{
+                backgroundColor: colors.blueAccent[600],
+                '&:hover': {
+                  backgroundColor: colors.blueAccent[700]
+                }
+              }}
+            >
+              XLSX
+            </Button>
+            <Button
+              variant="contained"
+              color="secondary"
+              startIcon={<DownloadIcon />}
+              onClick={exportToCSV}
+              sx={{
+                backgroundColor: colors.blueAccent[600],
+                '&:hover': {
+                  backgroundColor: colors.blueAccent[700]
+                }
+              }}
+            >
+              CSV
+            </Button>
+          </Box>
+        }
+      />
+
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Box flex={1}>
+          {error && (
+            <Alert severity="error" sx={{ width: '100%' }}>
+              {error}
+            </Alert>
+          )}
+        </Box>
+        <Box>
+          <Button
+            variant="contained"
+            color="secondary"
+            startIcon={<FilterListIcon />}
+            onClick={handleFilterClick}
+            disabled={loading}
+            sx={{
+              backgroundColor: colors.blueAccent[600],
+              '&:hover': {
+                backgroundColor: colors.blueAccent[700]
+              },
+              '&:disabled': {
+                backgroundColor: colors.grey[700]
+              }
+            }}
+          >
+            Filters
+          </Button>
+        </Box>
+      </Box>
+
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleFilterClose}
+        PaperProps={{
+          style: {
+            width: 350,
+            padding: '16px',
+            backgroundColor: colors.primary[400]
+          }
+        }}
+      >
+        <TextField
+          label="Search (ID, Description)"
+          value={filters.search}
+          onChange={handleFilterChange('search')}
+          fullWidth
+          margin="normal"
+          variant="outlined"
+          disabled={loading}
+        />
+        <TextField
+          label="Transaction Type"
+          value={filters.type}
+          onChange={handleFilterChange('type')}
+          fullWidth
+          margin="normal"
+          variant="outlined"
+          select
+          disabled={loading}
         >
-          Filters
-        </Button>
-        <Menu
-          anchorEl={anchorEl}
-          open={Boolean(anchorEl)}
-          onClose={handleFilterClose}
-          PaperProps={{
-            style: {
-              width: 300,
-              padding: '16px',
-              backgroundColor: colors.primary[400]
-            }
-          }}
+          <MenuItem value="">All Types</MenuItem>
+          <MenuItem value="TRANSFER">Transfer</MenuItem>
+          <MenuItem value="PAYMENT">Payment</MenuItem>
+          <MenuItem value="WITHDRAWAL">Withdrawal</MenuItem>
+          <MenuItem value="DEPOSIT">Deposit</MenuItem>
+        </TextField>
+        <TextField
+          label="Status"
+          value={filters.status}
+          onChange={handleFilterChange('status')}
+          fullWidth
+          margin="normal"
+          variant="outlined"
+          select
+          disabled={loading}
         >
+          <MenuItem value="">All Statuses</MenuItem>
+          {Object.entries(STATUS_CONFIG).map(([key, { label }]) => (
+            <MenuItem key={key} value={key}>{label}</MenuItem>
+          ))}
+        </TextField>
+        <Box display="flex" gap={2} mt={2}>
           <TextField
-            label="Search (ID or Description)"
-            value={filters.search}
-            onChange={handleFilterChange('search')}
+            label="Min Amount (TZS)"
+            value={filters.minAmount}
+            onChange={handleFilterChange('minAmount')}
             fullWidth
             margin="normal"
             variant="outlined"
+            type="number"
+            disabled={loading}
+            InputProps={{
+              startAdornment: <InputAdornment position="start">TZS</InputAdornment>,
+            }}
           />
           <TextField
-            label="Transaction Type"
-            value={filters.type}
-            onChange={handleFilterChange('type')}
+            label="Max Amount (TZS)"
+            value={filters.maxAmount}
+            onChange={handleFilterChange('maxAmount')}
             fullWidth
             margin="normal"
             variant="outlined"
-            select
-          >
-            <MenuItem value="">All</MenuItem>
-            <MenuItem value="Mobile Payment">Mobile Payment</MenuItem>
-            <MenuItem value="Mobile Deposit">Mobile Deposit</MenuItem>
-            <MenuItem value="Mobile Withdrawal">Mobile Withdrawal</MenuItem>
-            <MenuItem value="Mobile Refund">Mobile Refund</MenuItem>
-            <MenuItem value="Mobile Transfer">Mobile Transfer</MenuItem>
-            <MenuItem value="Peer Transfer">Peer Transfer</MenuItem>
-          </TextField>
+            type="number"
+            disabled={loading}
+            InputProps={{
+              startAdornment: <InputAdornment position="start">TZS</InputAdornment>,
+            }}
+          />
+        </Box>
+        <Box display="flex" alignItems="center" mt={2}>
           <TextField
-            label="Status"
-            value={filters.status}
-            onChange={handleFilterChange('status')}
-            fullWidth
-            margin="normal"
-            variant="outlined"
-            select
+            label="Fraud Only"
+            value={filters.fraudOnly}
+            onChange={(e) => setFilters({...filters, fraudOnly: e.target.checked})}
+            type="checkbox"
+            disabled={loading}
+          />
+          <Typography variant="body2" ml={1}>Show only fraudulent transactions</Typography>
+        </Box>
+        <Box display="flex" justifyContent="space-between" mt={3}>
+          <Button 
+            variant="outlined" 
+            onClick={clearFilters}
+            disabled={loading}
+            sx={{ color: colors.grey[100] }}
           >
-            <MenuItem value="">All</MenuItem>
-            <MenuItem value="Completed">Completed</MenuItem>
-            <MenuItem value="Pending">Pending</MenuItem>
-            <MenuItem value="Failed">Failed</MenuItem>
-            <MenuItem value="Confirmed">Confirmed</MenuItem>
-          </TextField>
-          <Box display="flex" gap={2} mt={2}>
-            <TextField
-              label="Min Amount"
-              value={filters.minAmount}
-              onChange={handleFilterChange('minAmount')}
-              fullWidth
-              margin="normal"
-              variant="outlined"
-              type="number"
-              InputProps={{
-                startAdornment: <InputAdornment position="start">TZS</InputAdornment>,
-              }}
-            />
-            <TextField
-              label="Max Amount"
-              value={filters.maxAmount}
-              onChange={handleFilterChange('maxAmount')}
-              fullWidth
-              margin="normal"
-              variant="outlined"
-              type="number"
-              InputProps={{
-                startAdornment: <InputAdornment position="start">TZS</InputAdornment>,
-              }}
-            />
-          </Box>
-          <Box display="flex" justifyContent="space-between" mt={2}>
-            <Button 
-              variant="outlined" 
-              onClick={clearFilters}
-              sx={{ color: colors.grey[100] }}
-            >
-              Clear
-            </Button>
-            <Button 
-              variant="contained" 
-              onClick={handleFilterClose}
-              sx={{ backgroundColor: colors.blueAccent[600] }}
-            >
-              Apply
-            </Button>
-          </Box>
-        </Menu>
-      </Box>
+            Clear Filters
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={() => {
+              handleFilterClose();
+              fetchTransactions();
+            }}
+            disabled={loading}
+            sx={{ backgroundColor: colors.blueAccent[600] }}
+          >
+            Apply Filters
+          </Button>
+        </Box>
+      </Menu>
+
       <Box
         m="40px 0 0 0"
         height="75vh"
         sx={{
+          '& .MuiDataGrid-root': {
+            border: 'none',
+          },
           '& .MuiDataGrid-columnHeaders': {
             backgroundColor: colors.blueAccent[700],
             color: colors.grey[100],
@@ -491,19 +596,38 @@ const TransactionHistory = () => {
             "&:hover": {
               backgroundColor: colors.blueAccent[500],
             },
-          },
+          }
         }}
       >
-        <DataGrid
-          rows={filteredTransactions}
-          columns={columns}
-          pageSize={100}
-          rowsPerPageOptions={[100]}
-          onRowClick={(params) => handleOpen(params.row)}
-        />
+        {loading ? (
+          <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+            <CircularProgress />
+          </Box>
+        ) : (
+          <DataGrid
+            rows={filteredTransactions}
+            columns={columns}
+            rowCount={rowCount}
+            loading={loading}
+            pageSizeOptions={[10, 25, 50, 100]}
+            paginationModel={paginationModel}
+            paginationMode="server"
+            onPaginationModelChange={setPaginationModel}
+            onRowClick={(params) => handleOpen(params.row)}
+            slots={{
+              toolbar: GridToolbar,
+            }}
+            slotProps={{
+              toolbar: {
+                showQuickFilter: true,
+                printOptions: { disableToolbarButton: true },
+                csvOptions: { disableToolbarButton: true },
+              },
+            }}
+          />
+        )}
       </Box>
 
-      {/* Transaction Visualization Modal */}
       <Modal
         open={open}
         onClose={handleClose}
@@ -536,10 +660,9 @@ const TransactionHistory = () => {
                   fontWeight: 'bold'
                 }}>
                   <CurrencyExchangeIcon sx={{ fontSize: 40, verticalAlign: 'middle', mr: 1 }} />
-                  Transaction Flow
+                  Transaction Details
                 </Typography>
                 
-                {/* Transaction Flow Visualization */}
                 <Box sx={{ 
                   display: 'flex', 
                   justifyContent: 'space-between', 
@@ -547,7 +670,6 @@ const TransactionHistory = () => {
                   mb: 4,
                   position: 'relative'
                 }}>
-                  {/* Sender Phone */}
                   <Box sx={{ 
                     textAlign: 'center',
                     p: 3,
@@ -564,7 +686,6 @@ const TransactionHistory = () => {
                     </Typography>
                   </Box>
                   
-                  {/* Animated Waves */}
                   <Box sx={{ 
                     position: 'absolute', 
                     left: '50%', 
@@ -582,7 +703,10 @@ const TransactionHistory = () => {
                         ease: "easeInOut"
                       }}
                     >
-                      <ArrowForwardIcon sx={{ fontSize: 40, color: colors.greenAccent[500] }} />
+                      <ArrowForwardIcon sx={{ 
+                        fontSize: 40, 
+                        color: colors.greenAccent[500] 
+                      }} />
                     </motion.div>
                     <motion.div
                       animate={{
@@ -614,11 +738,13 @@ const TransactionHistory = () => {
                         delay: 1
                       }}
                     >
-                      <ArrowForwardIcon sx={{ fontSize: 40, color: colors.greenAccent[500] }} />
+                      <ArrowForwardIcon sx={{ 
+                        fontSize: 40, 
+                        color: colors.greenAccent[500] 
+                      }} />
                     </motion.div>
                   </Box>
                   
-                  {/* Receiver Phone */}
                   <Box sx={{ 
                     textAlign: 'center',
                     p: 3,
@@ -636,7 +762,6 @@ const TransactionHistory = () => {
                   </Box>
                 </Box>
                 
-                {/* Transaction Details */}
                 <Box sx={{ 
                   mt: 4,
                   p: 3,
@@ -661,14 +786,11 @@ const TransactionHistory = () => {
                     </Box>
                     <Box sx={{ flex: '1 1 200px' }}>
                       <Typography variant="body2" color="textSecondary">Status:</Typography>
-                      <Typography variant="body1" sx={{ 
-                        color: selectedTransaction.status === 'Completed' ? 'green' : 
-                              selectedTransaction.status === 'Pending' ? 'orange' :
-                              selectedTransaction.status === 'Failed' ? 'red' : 'goldenrod',
-                        fontWeight: 'bold'
-                      }}>
-                        {selectedTransaction.status}
-                      </Typography>
+                      <Chip 
+                        label={STATUS_CONFIG[selectedTransaction.status.toUpperCase()]?.label || selectedTransaction.status}
+                        color={STATUS_CONFIG[selectedTransaction.status.toUpperCase()]?.color || 'default'}
+                        size="small"
+                      />
                     </Box>
                   </Box>
                   <Box sx={{ mt: 2 }}>
@@ -681,6 +803,29 @@ const TransactionHistory = () => {
           </Box>
         </Fade>
       </Modal>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          severity={snackbar.severity}
+          action={
+            <IconButton
+              size="small"
+              aria-label="close"
+              color="inherit"
+              onClick={handleCloseSnackbar}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          }
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
