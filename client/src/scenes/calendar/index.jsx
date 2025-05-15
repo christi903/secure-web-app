@@ -1,57 +1,61 @@
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
-import listPlugin from "@fullcalendar/list";
-import { Box, List, ListItem, ListItemText, Typography, useTheme } from "@mui/material";
-import { tokens } from "../../theme";
-import Header from "../../components/Header";
-import { useState } from "react";
+import FullCalendar from '@fullcalendar/react'; // Main calendar component
+import dayGridPlugin from '@fullcalendar/daygrid'; // Month and day grid views
+import timeGridPlugin from '@fullcalendar/timegrid'; // Week and day views
+import interactionPlugin from '@fullcalendar/interaction'; // For click and drag interactions
+import listPlugin from "@fullcalendar/list"; // List view plugin
+import { Box, Grid, Card, CardContent, Typography, useTheme, Divider } from "@mui/material"; // Material UI components
+import { tokens } from "../../theme"; // Theme colors
+import Header from "../../components/Header"; // Custom header component
+import { useState } from "react"; // React state hook
 
 // Default color palette if theme tokens are not available
 const defaultColors = {
-  red: { 500: '#f44336', 800: '#d32f2f' },
-  blue: { 500: '#2196f3' },
-  green: { 500: '#4caf50' },
-  yellow: { 500: '#ffeb3b' },
-  purple: { 500: '#9c27b0' },
-  primary: { 400: '#3e4396' }
+  red: { 500: '#f44336', 800: '#d32f2f' }, // Red shades for high-priority events
+  blue: { 500: '#2196f3' }, // Blue for informational events
+  green: { 500: '#4caf50' }, // Green for positive events
+  yellow: { 500: '#ffeb3b' }, // Yellow for warnings
+  purple: { 500: '#9c27b0' }, // Purple for special events
+  primary: { 400: '#3e4396' } // Primary color fallback
 };
 
 const Calendars = () => {
-  const theme = useTheme();
-  // Safely get colors with fallback to defaults
+  const theme = useTheme(); // Access MUI theme
+  // Safely get colors with fallback to defaults if theme tokens are missing
   const colors = tokens(theme.palette.mode) || defaultColors;
   
+  // State to track current events in the calendar
   const [currentEvents, setCurrentEvents] = useState([]);
 
+  // Helper function to format dates consistently
   const formatDate = (dateStr, options) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', options);
+    const date = new Date(dateStr); // Create Date object from string
+    return date.toLocaleDateString('en-US', options); // Format according to options
   };
 
-  // Function to shorten event titles for calendar display
+  // Function to shorten long event titles for better display in calendar cells
   const shortenTitle = (title) => {
-    const maxLength = 15;
-    if (title.length > maxLength) {
-      return title.substring(0, maxLength) + '...';
-    }
-    return title;
+    const maxLength = 15; // Maximum characters to display
+    return title.length > maxLength ? 
+      `${title.substring(0, maxLength)}...` : // Truncate with ellipsis if too long
+      title; // Return original if short enough
   };
 
+  // Handler for when a date is clicked (to add new events)
   const handleDateClick = (selected) => {
+    // Prompt user for event title
     const title = prompt("Please enter a new fraud detection event");
-    const calendarApi = selected.view.calendar;
-    calendarApi.unselect();
+    const calendarApi = selected.view.calendar; // Get calendar API instance
+    calendarApi.unselect(); // Clear the date selection visual
 
     if (title) {
+      // Add new event to calendar
       calendarApi.addEvent({
-        id: `${selected.dateStr}-${title}`,
-        title,
-        start: selected.startStr,
-        end: selected.endStr,
-        allDay: selected.allDay,
-        color: colors.red?.[500] || defaultColors.red[500],
+        id: `${selected.dateStr}-${title}`, // Unique ID combining date and title
+        title, // Event title
+        start: selected.startStr, // Start time
+        end: selected.endStr, // End time
+        allDay: selected.allDay, // All-day event flag
+        color: colors.red?.[500] || defaultColors.red[500], // Red color for fraud events
         extendedProps: {
           description: title // Store full title as description
         }
@@ -59,42 +63,46 @@ const Calendars = () => {
     }
   };
 
+  // Handler for when an event is clicked (to delete events)
   const handleEventClick = (selected) => {
+    // Confirm before deleting event
     if (window.confirm(`Are you sure you want to delete the fraud detection event '${selected.event.title}'`)) {
-      selected.event.remove();
+      selected.event.remove(); // Remove event from calendar
     }
   };
 
-  // Safe color accessor function
+  // Safe color accessor function with fallbacks
   const getColor = (colorName, shade = 500) => {
-    return colors[colorName]?.[shade] || defaultColors[colorName]?.[shade] || '#666';
+    return colors[colorName]?.[shade] || // Try theme colors first
+      defaultColors[colorName]?.[shade] || // Then default colors
+      '#666'; // Fallback gray
   };
 
-  // Fraud detection system events
+  // Predefined fraud detection system events
   const fraudEvents = [
-    // Month 1
+    // Month 1 events
     {
       id: "fraud-1",
       title: "Suspicious Transaction Spike",
       description: "Suspicious Transaction Spike Detected - Multiple high-value transactions from single source",
-      date: "2025-01-05",
-      color: getColor('red')
+      date: "2025-01-05", // Event date
+      color: getColor('red') // Red color for high severity
     },
     {
       id: "fraud-2",
       title: "Fraud Pattern Update",
       description: "System Update: New Fraud Patterns Added to Detection Algorithms",
       date: "2025-01-15",
-      color: getColor('blue')
+      color: getColor('blue') // Blue for informational event
     },
     {
       id: "fraud-3",
       title: "Quarterly Review",
       description: "Quarterly Fraud Prevention Review Meeting with Security Team",
       date: "2025-02-22",
-      color: getColor('green')
+      color: getColor('green') // Green for positive event
     },
-    // Month 2
+    // Month 2 events
     {
       id: "fraud-4",
       title: "High-Risk Alert",
@@ -114,9 +122,9 @@ const Calendars = () => {
       title: "System Maintenance",
       description: "System Maintenance - Fraud Detection Algorithms Update",
       date: "2025-04-20",
-      color: getColor('yellow')
+      color: getColor('yellow') // Yellow for maintenance
     },
-    // Month 3
+    // Month 3 events
     {
       id: "fraud-7",
       title: "New Fraud Pattern",
@@ -144,7 +152,7 @@ const Calendars = () => {
       title: "Zero-Day Exploit",
       description: "Critical: Zero-Day Fraud Exploit Detected - Emergency Patch Required",
       date: "2025-08-30",
-      color: getColor('red', 800),
+      color: getColor('red', 800), // Darker red for critical
       allDay: true
     },
     {
@@ -152,93 +160,92 @@ const Calendars = () => {
       title: "AI Model Update",
       description: "AI Model Retraining (Fraud Detection) - Scheduled Maintenance",
       date: "2025-11-28",
-      color: getColor('purple')
+      color: getColor('purple') // Purple for special event
     }
   ];
 
   return (
     <Box m="20px">
+      {/* Page header with title and subtitle */}
       <Header title="Fraud Detection Calendar" subtitle="Critical events and monitoring schedule" />
 
-      <Box display="flex" justifyContent="space-between">
-        {/* CALENDAR SIDEBAR */}
-        <Box
-          p="15px"
-          flex="1 1 20%"
-          borderRadius="4px"
-          backgroundColor={getColor('primary', 400)}
-        >
-          <Typography variant="h5">Fraud Events</Typography>
-          <List>
-            {currentEvents.map((event) => (
-              <ListItem
-                key={event.id}
-                sx={{
-                  margin: "10px 0",
-                  borderRadius: "2px",
-                  backgroundColor: event.color || getColor('green'),
+      {/* Main calendar component */}
+      <Box mb="20px">
+        <FullCalendar
+          height="65vh" // Fixed height for calendar
+          editable={true} // Allow events to be edited
+          selectable={true} // Allow date selection
+          selectMirror={true} // Show selection visual feedback
+          dayMaxEvents={true} // Allow unlimited events per day
+          select={handleDateClick} // Date selection handler
+          initialView="dayGridMonth" // Default to month view
+          eventClick={handleEventClick} // Event click handler
+          eventsSet={(events) => setCurrentEvents(events)} // Sync events with state
+          plugins={[ // Required plugins
+            dayGridPlugin,
+            timeGridPlugin,
+            interactionPlugin,
+            listPlugin,
+          ]}
+          initialEvents={fraudEvents} // Preload with fraud events
+          headerToolbar={{ // Toolbar configuration
+            left: "prev,next today", // Navigation controls
+            center: "title", // Month/year title
+            right: "dayGridMonth,timeGridWeek,timeGridDay,listMonth", // View options
+          }}
+          eventContent={(eventInfo) => ( // Custom event rendering
+            <div style={{ 
+              fontWeight: 'bold', // Bold text
+              fontSize: '0.85em', // Slightly smaller font
+              whiteSpace: 'nowrap', // Prevent wrapping
+              overflow: 'hidden', // Hide overflow
+              textOverflow: 'ellipsis' // Add ellipsis for long text
+            }}>
+              <i className="fas fa-shield-alt" style={{ marginRight: '5px' }}></i>
+              {shortenTitle(eventInfo.event.title)}
+            </div>
+          )}
+        />
+      </Box>
+
+      <Divider sx={{ my: 3 }} /> {/* Horizontal divider */}
+
+      {/* List of fraud events below the calendar */}
+      <Box>
+        <Typography variant="h5" gutterBottom>Fraud Events</Typography>
+        <Grid container spacing={2}>
+          {currentEvents.map((event) => (
+            <Grid item xs={12} sm={6} md={4} lg={3} key={event.id}>
+              <Card 
+                sx={{ 
+                  height: '100%', // Full height cards
+                  borderLeft: `4px solid ${event.color || getColor('green')}`, // Color-coded border
+                  '&:hover': { // Hover effects
+                    boxShadow: 3, // Elevation on hover
+                    transform: 'translateY(-2px)', // Lift effect
+                    transition: 'all 0.3s ease' // Smooth transition
+                  }
                 }}
               >
-                <ListItemText
-                  primary={event.title}
-                  secondary={
-                    <Box>
-                      <Typography variant="body2">
-                        {formatDate(event.start, {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </Typography>
-                      <Typography variant="caption" sx={{ display: 'block', marginTop: '5px' }}>
-                        {event.extendedProps?.description || event.title}
-                      </Typography>
-                    </Box>
-                  }
-                />
-              </ListItem>
-            ))}
-          </List>
-        </Box>
-
-        {/* CALENDAR */}
-        <Box flex="1 1 100%" ml="15px">
-          <FullCalendar
-            height="75vh"
-            editable={true}
-            selectable={true}
-            selectMirror={true}
-            dayMaxEvents={true}
-            select={handleDateClick}
-            initialView="dayGridMonth"
-            eventClick={handleEventClick}
-            eventsSet={(events) => setCurrentEvents(events)}
-            plugins={[
-              dayGridPlugin,
-              timeGridPlugin,
-              interactionPlugin,
-              listPlugin,
-            ]}
-            initialEvents={fraudEvents}
-            headerToolbar={{
-              left: "prev,next today",
-              center: "title",
-              right: "dayGridMonth,timeGridWeek,timeGridDay,listMonth",
-            }}
-            eventContent={(eventInfo) => (
-              <div style={{ 
-                fontWeight: 'bold', 
-                fontSize: '0.85em',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}>
-                <i className="fas fa-shield-alt" style={{ marginRight: '5px' }}></i>
-                {shortenTitle(eventInfo.event.title)}
-              </div>
-            )}
-          />
-        </Box>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    {event.title}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    {formatDate(event.start, { // Formatted date
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </Typography>
+                  <Typography variant="body2">
+                    {event.extendedProps?.description || event.title}  
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
       </Box>
     </Box>
   );
