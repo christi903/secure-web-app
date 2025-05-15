@@ -1,38 +1,74 @@
-import { mockDataTeam } from "../../data/mockData"; // Sample team data
-import { Box, Typography, useTheme } from "@mui/material"; // Layout components
-import { DataGrid } from "@mui/x-data-grid"; // Data table component
-import { tokens } from "../../theme"; // Theme colors
-import Header from "../../components/Header"; // Custom header
-import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined"; // Admin icon
-import LockOpenOutlinedIcon from "@mui/icons-material/LockOpenOutlined"; // User icon
-import SecurityOutlinedIcon from "@mui/icons-material/SecurityOutlined"; // Manager icon
-import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined"; // Fraud analyst icon
+import { useState, useEffect } from "react";
+import { Box, Typography, useTheme } from "@mui/material";
+import { DataGrid } from "@mui/x-data-grid";
+import { tokens } from "../../theme";
+import Header from "../../components/Header";
+import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
+import LockOpenOutlinedIcon from "@mui/icons-material/LockOpenOutlined";
+import SecurityOutlinedIcon from "@mui/icons-material/SecurityOutlined";
+import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
+import { supabase } from "../../supabaseClient";
 
 const Team = () => {
-  const theme = useTheme(); // Access MUI theme
-  const colors = tokens(theme.palette.mode); // Get theme colors
+  const theme = useTheme();
+  const colors = tokens(theme.palette.mode);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // DataGrid columns configuration
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from("users")
+          .select("id, first_name, last_name, email, role")
+          .order("created_at", { ascending: true });
+
+        if (error) throw error;
+
+        // Transform data to match our table structure
+        const formattedUsers = data.map(user => ({
+          id: user.id,
+          name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown',
+          email: user.email || "No email",
+          access: user.role?.toLowerCase() || "user" // Default to 'user' if not specified
+        }));
+
+        setUsers(formattedUsers);
+      } catch (err) {
+        console.error("Error fetching users:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
   const columns = [
-    { field: "id", headerName: "ID", width: 70 }, // ID column
+    { field: "id", headerName: "ID", width: 70 },
     {
       field: "name",
       headerName: "Name",
-      flex: 1, // Flexible width
-      cellClassName: "name-column--cell", // Custom class for name cells
+      flex: 1,
+      cellClassName: "name-column--cell",
+      // Optional: Add a valueGetter if you want to display first/last separately
+      // valueGetter: (params) => `${params.row.first_name} ${params.row.last_name}`
     },
     {
       field: "email",
       headerName: "Email",
-      flex: 1, // Flexible width
+      flex: 1,
     },
     {
       field: "access",
-      headerName: "Access Level",
-      flex: 1, // Flexible width
-      renderCell: ({ row: { access } }) => { // Custom cell rendering
-        let bgColor; // Background color based on access level
-        let icon; // Icon based on access level
+      headerName: "Role",
+      flex: 1,
+      renderCell: ({ row: { access } }) => {
+        let bgColor;
+        let icon;
 
         switch (access) {
           case "fraud analyst":
@@ -75,54 +111,95 @@ const Team = () => {
     },
   ];
 
+  if (loading) {
+    return (
+      <Box m="20px">
+        <Header title="TEAM" subtitle="Fraud Detection Team" />
+        <Box
+          mt="40px"
+          height="75vh"
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          backgroundColor={colors.primary[400]}
+          borderRadius="4px"
+        >
+          <Typography variant="h5" color={colors.grey[100]}>
+            Loading team members...
+          </Typography>
+        </Box>
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box m="20px">
+        <Header title="TEAM" subtitle="Fraud Detection Team" />
+        <Box
+          mt="40px"
+          height="75vh"
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          backgroundColor={colors.primary[400]}
+          borderRadius="4px"
+        >
+          <Typography variant="h5" color={colors.redAccent[500]}>
+            Error: {error}
+          </Typography>
+        </Box>
+      </Box>
+    );
+  }
+
   return (
     <Box m="20px">
-      {/* Page header */}
       <Header title="TEAM" subtitle="Fraud Detection Team" />
 
-      {/* DataGrid showing team members */}
       <Box
         mt="40px"
         height="75vh"
         sx={{
           "& .MuiDataGrid-root": {
-            border: "none", // Remove default border
+            border: "none",
           },
           "& .MuiDataGrid-cell": {
-            borderBottom: "none", // Remove cell borders
+            borderBottom: "none",
           },
           "& .name-column--cell": {
-            color: colors.greenAccent[300], // Custom color for name cells
+            color: colors.greenAccent[300],
           },
           "& .MuiDataGrid-virtualScroller": {
-            backgroundColor: colors.primary[400], // Background color
+            backgroundColor: colors.primary[400],
           },
           "& .MuiDataGrid-footerContainer": {
-            borderTop: "none", // Remove footer border
-            backgroundColor: colors.blueAccent[700], // Footer background
+            borderTop: "none",
+            backgroundColor: colors.blueAccent[700],
           },
           "& .MuiCheckbox-root": {
-            color: `${colors.greenAccent[200]} !important`, // Checkbox color
+            color: `${colors.greenAccent[200]} !important`,
           },
         }}
       >
         <DataGrid
-          rows={mockDataTeam} // Team data
-          columns={columns} // Column configuration
-          checkboxSelection // Enable row selection
+          rows={users}
+          columns={columns}
+          loading={loading}
+          checkboxSelection
           sx={{
-            '& .MuiDataGrid-columnHeaders': { // Column header styling
+            '& .MuiDataGrid-columnHeaders': {
               backgroundColor: colors.blueAccent[700],
               color: colors.grey[100],
               fontSize: '16px',
             },
             '& .MuiDataGrid-columnHeaderTitle': {
-              fontWeight: 'bold', // Bold header titles
+              fontWeight: 'bold',
             },
             '& .MuiDataGrid-columnHeader': {
               backgroundColor: colors.blueAccent[700],
               '&:focus, &:focus-within': {
-                outline: 'none !important', // Remove focus outline
+                outline: 'none !important',
               },
             },
           }}
