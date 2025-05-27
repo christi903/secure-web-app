@@ -33,7 +33,9 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import Papa from 'papaparse';
 
-// Status options with colors
+/**
+ * Configuration object for transaction statuses with their display labels and colors
+ */
 const STATUS_CONFIG = {
   BLOCKED: { label: 'Blocked', color: 'error' },
   LEGIT: { label: 'Legit', color: 'success' },
@@ -45,9 +47,12 @@ const STATUS_CONFIG = {
 };
 
 const TransactionHistory = () => {
+  // Access the current theme
   const theme = useTheme();
   
-  // Safely get colors with comprehensive fallbacks
+  /**
+   * Safely get colors with comprehensive fallbacks in case the theme tokens are not available
+   */
   const colorTokens = tokens(theme.palette.mode);
   const colors = {
     grey: colorTokens?.grey || {
@@ -119,10 +124,10 @@ const TransactionHistory = () => {
   };
 
   // State declarations
-  const [open, setOpen] = useState(false);
-  const [selectedTransaction, setSelectedTransaction] = useState(null);
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [filters, setFilters] = useState({
+  const [open, setOpen] = useState(false); // Controls modal visibility
+  const [selectedTransaction, setSelectedTransaction] = useState(null); // Stores currently selected transaction
+  const [anchorEl, setAnchorEl] = useState(null); // Anchor for filter menu
+  const [filters, setFilters] = useState({ // Filter state
     search: '',
     type: '',
     status: '',
@@ -130,17 +135,25 @@ const TransactionHistory = () => {
     maxAmount: '',
     fraudOnly: false
   });
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
-  const [paginationModel, setPaginationModel] = useState({
+  const [transactions, setTransactions] = useState([]); // Transaction data
+  const [loading, setLoading] = useState(true); // Loading state
+  const [error, setError] = useState(null); // Error state
+  const [snackbar, setSnackbar] = useState({ // Snackbar notification state
+    open: false, 
+    message: '', 
+    severity: 'info' 
+  });
+  const [paginationModel, setPaginationModel] = useState({ // Pagination state
     page: 0,
     pageSize: 10,
   });
-  const [rowCount, setRowCount] = useState(0);
+  const [rowCount, setRowCount] = useState(0); // Total row count for pagination
 
-  // Moved generateDescription before formatTransaction to fix the reference error
+  /**
+   * Generates a description for a transaction based on its type and parties involved
+   * @param {Object} transaction - The transaction object
+   * @returns {string} - Generated description
+   */
   const generateDescription = useCallback((transaction) => {
     const actions = {
       TRANSFER: 'Transfer',
@@ -152,6 +165,11 @@ const TransactionHistory = () => {
     return `${action} from ${transaction.initiator_id} to ${transaction.recipient_id}`;
   }, []);
 
+  /**
+   * Formats a raw transaction object into a display-friendly format
+   * @param {Object} transaction - The raw transaction data
+   * @returns {Object} - Formatted transaction data
+   */
   const formatTransaction = useCallback((transaction) => ({
     id: transaction.id,
     date: new Date(transaction.transaction_time).toLocaleString('en-US', {
@@ -174,18 +192,34 @@ const TransactionHistory = () => {
   }), [generateDescription]);
 
   // Handler functions
+
+  /**
+   * Opens the filter menu
+   * @param {Event} event - The click event
+   */
   const handleFilterClick = (event) => {
     setAnchorEl(event.currentTarget);
   };
 
+  /**
+   * Closes the filter menu
+   */
   const handleFilterClose = () => {
     setAnchorEl(null);
   };
 
+  /**
+   * Handles changes to filter inputs
+   * @param {string} prop - The filter property to update
+   * @returns {Function} - Event handler function
+   */
   const handleFilterChange = (prop) => (event) => {
     setFilters({ ...filters, [prop]: event.target.value });
   };
 
+  /**
+   * Resets all filters to their default values
+   */
   const clearFilters = () => {
     setFilters({
       search: '',
@@ -197,24 +231,36 @@ const TransactionHistory = () => {
     });
   };
 
+  /**
+   * Opens the transaction details modal
+   * @param {Object} transaction - The transaction to display
+   */
   const handleOpen = (transaction) => {
     setSelectedTransaction(transaction);
     setOpen(true);
   };
 
+  /**
+   * Closes the transaction details modal
+   */
   const handleClose = () => {
     setOpen(false);
   };
 
+  /**
+   * Fetches transactions from the database with applied filters
+   */
   const fetchTransactions = useCallback(async () => {
     try {
       setLoading(true);
       
+      // Initialize the query
       let query = supabase
         .from('transactions')
         .select('*', { count: 'exact' })
         .order('transaction_time', { ascending: false });
 
+      // Apply filters if they exist
       if (filters.search) {
         query = query.or(`description.ilike.%${filters.search}%,initiator_id.ilike.%${filters.search}%,recipient_id.ilike.%${filters.search}%`);
       }
@@ -234,6 +280,7 @@ const TransactionHistory = () => {
         query = query.eq('is_fraud', true);
       }
 
+      // Execute the query with pagination
       const { data, count, error } = await query
         .range(
           paginationModel.page * paginationModel.pageSize,
@@ -242,20 +289,27 @@ const TransactionHistory = () => {
 
       if (error) throw error;
 
+      // Format and set the transaction data
       setTransactions(data.map(formatTransaction));
       setRowCount(count || 0);
     } catch (err) {
       setError(err.message);
-      setSnackbar({ open: true, message: `Error loading transactions: ${err.message}`, severity: 'error' });
+      setSnackbar({ 
+        open: true, 
+        message: `Error loading transactions: ${err.message}`, 
+        severity: 'error' 
+      });
     } finally {
       setLoading(false);
     }
   }, [filters, paginationModel, formatTransaction]);
 
+  // Fetch transactions when component mounts or filters/pagination changes
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
 
+  // Set up real-time subscription to transaction changes
   useEffect(() => {
     const subscription = supabase
       .channel('transactions')
@@ -264,8 +318,10 @@ const TransactionHistory = () => {
         schema: 'public',
         table: 'transactions'
       }, (payload) => {
+        // Refresh transactions when changes occur
         fetchTransactions();
         if (payload.eventType === 'INSERT') {
+          // Show notification for new transactions
           const newTransaction = formatTransaction(payload.new);
           setSnackbar({
             open: true,
@@ -276,11 +332,15 @@ const TransactionHistory = () => {
       })
       .subscribe();
 
+    // Clean up subscription on unmount
     return () => {
       supabase.removeChannel(subscription);
     };
   }, [fetchTransactions, formatTransaction]);
 
+  /**
+   * Exports transactions to Excel format
+   */
   const exportToXLSX = () => {
     const worksheet = XLSX.utils.json_to_sheet(transactions);
     const workbook = XLSX.utils.book_new();
@@ -288,12 +348,18 @@ const TransactionHistory = () => {
     XLSX.writeFile(workbook, 'transactions.xlsx');
   };
   
+  /**
+   * Exports transactions to CSV format
+   */
   const exportToCSV = () => {
     const csv = Papa.unparse(transactions);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     saveAs(blob, 'transactions.csv');
   };
 
+  /**
+   * Column definitions for the DataGrid
+   */
   const columns = [
     { field: "date", headerName: "Date/Time", flex: 1, minWidth: 180 },
     { field: "transactionId", headerName: "Transaction ID", flex: 1, minWidth: 150 },
@@ -339,6 +405,9 @@ const TransactionHistory = () => {
     },
   ];
 
+  /**
+   * Filters transactions based on current filter state
+   */
   const filteredTransactions = transactions.filter(transaction => {
     return (
       (filters.search === '' || 
@@ -352,22 +421,34 @@ const TransactionHistory = () => {
     );
   });
 
+  /**
+   * Refreshes the transaction data
+   */
   const handleRefresh = () => {
     fetchTransactions();
-    setSnackbar({ open: true, message: 'Transactions refreshed', severity: 'success' });
+    setSnackbar({ 
+      open: true, 
+      message: 'Transactions refreshed', 
+      severity: 'success' 
+    });
   };
 
+  /**
+   * Closes the snackbar notification
+   */
   const handleCloseSnackbar = () => {
     setSnackbar(prev => ({ ...prev, open: false }));
   };
 
   return (
     <Box m="20px">
+      {/* Header section with title and action buttons */}
       <Header 
         title="TRANSACTION RECORDS" 
         subtitle="Detailed list of financial transactions"
         rightContent={
           <Box sx={{ display: 'flex', gap: 1 }}>
+            {/* Refresh button */}
             <Button
               variant="outlined"
               startIcon={<RefreshIcon />}
@@ -383,6 +464,8 @@ const TransactionHistory = () => {
             >
               Refresh
             </Button>
+            
+            {/* Export to Excel button */}
             <Button
               variant="contained"
               color="secondary"
@@ -397,6 +480,8 @@ const TransactionHistory = () => {
             >
               XLSX
             </Button>
+            
+            {/* Export to CSV button */}
             <Button
               variant="contained"
               color="secondary"
@@ -415,6 +500,7 @@ const TransactionHistory = () => {
         }
       />
 
+      {/* Filter and error display section */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Box flex={1}>
           {error && (
@@ -424,6 +510,7 @@ const TransactionHistory = () => {
           )}
         </Box>
         <Box>
+          {/* Filter button */}
           <Button
             variant="contained"
             color="secondary"
@@ -445,6 +532,7 @@ const TransactionHistory = () => {
         </Box>
       </Box>
 
+      {/* Filter menu */}
       <Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
@@ -457,6 +545,7 @@ const TransactionHistory = () => {
           }
         }}
       >
+        {/* Search filter */}
         <TextField
           label="Search (ID, Description)"
           value={filters.search}
@@ -466,6 +555,8 @@ const TransactionHistory = () => {
           variant="outlined"
           disabled={loading}
         />
+        
+        {/* Transaction type filter */}
         <TextField
           label="Transaction Type"
           value={filters.type}
@@ -482,6 +573,8 @@ const TransactionHistory = () => {
           <MenuItem value="WITHDRAWAL">Withdrawal</MenuItem>
           <MenuItem value="DEPOSIT">Deposit</MenuItem>
         </TextField>
+        
+        {/* Status filter */}
         <TextField
           label="Status"
           value={filters.status}
@@ -497,6 +590,8 @@ const TransactionHistory = () => {
             <MenuItem key={key} value={key}>{label}</MenuItem>
           ))}
         </TextField>
+        
+        {/* Amount range filters */}
         <Box display="flex" gap={2} mt={2}>
           <TextField
             label="Min Amount (TZS)"
@@ -525,6 +620,8 @@ const TransactionHistory = () => {
             }}
           />
         </Box>
+        
+        {/* Fraud-only toggle */}
         <Box display="flex" alignItems="center" mt={2}>
           <TextField
             label="Fraud Only"
@@ -535,6 +632,8 @@ const TransactionHistory = () => {
           />
           <Typography variant="body2" ml={1}>Show only fraudulent transactions</Typography>
         </Box>
+        
+        {/* Filter action buttons */}
         <Box display="flex" justifyContent="space-between" mt={3}>
           <Button 
             variant="outlined" 
@@ -558,6 +657,7 @@ const TransactionHistory = () => {
         </Box>
       </Menu>
 
+      {/* Main data grid */}
       <Box
         m="40px 0 0 0"
         height="75vh"
@@ -600,10 +700,12 @@ const TransactionHistory = () => {
         }}
       >
         {loading ? (
+          // Loading indicator
           <Box display="flex" justifyContent="center" alignItems="center" height="100%">
             <CircularProgress />
           </Box>
         ) : (
+          // Data grid component
           <DataGrid
             rows={filteredTransactions}
             columns={columns}
@@ -628,6 +730,7 @@ const TransactionHistory = () => {
         )}
       </Box>
 
+      {/* Transaction details modal */}
       <Modal
         open={open}
         onClose={handleClose}
@@ -653,6 +756,7 @@ const TransactionHistory = () => {
           }}>
             {selectedTransaction && (
               <>
+                {/* Modal header */}
                 <Typography variant="h4" gutterBottom sx={{ 
                   textAlign: 'center', 
                   mb: 4,
@@ -663,6 +767,7 @@ const TransactionHistory = () => {
                   Transaction Details
                 </Typography>
                 
+                {/* Sender/Receiver visualization */}
                 <Box sx={{ 
                   display: 'flex', 
                   justifyContent: 'space-between', 
@@ -670,6 +775,7 @@ const TransactionHistory = () => {
                   mb: 4,
                   position: 'relative'
                 }}>
+                  {/* Sender box */}
                   <Box sx={{ 
                     textAlign: 'center',
                     p: 3,
@@ -686,6 +792,7 @@ const TransactionHistory = () => {
                     </Typography>
                   </Box>
                   
+                  {/* Animated transfer visualization */}
                   <Box sx={{ 
                     position: 'absolute', 
                     left: '50%', 
@@ -745,6 +852,7 @@ const TransactionHistory = () => {
                     </motion.div>
                   </Box>
                   
+                  {/* Receiver box */}
                   <Box sx={{ 
                     textAlign: 'center',
                     p: 3,
@@ -762,6 +870,7 @@ const TransactionHistory = () => {
                   </Box>
                 </Box>
                 
+                {/* Transaction details section */}
                 <Box sx={{ 
                   mt: 4,
                   p: 3,
@@ -804,6 +913,7 @@ const TransactionHistory = () => {
         </Fade>
       </Modal>
 
+      {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}
         autoHideDuration={6000}
