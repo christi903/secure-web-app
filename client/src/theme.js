@@ -137,6 +137,71 @@ export const themeSettings = (mode) => {
           },
         },
       },
+      MuiDataGrid: {
+        styleOverrides: {
+          root: {
+            border: "none",
+            "& .MuiDataGrid-columnHeaders": {
+              backgroundColor: colors.blueAccent[700],
+              color: colors.grey[100],
+              fontSize: "16px",
+            },
+            "& .MuiDataGrid-columnHeaderTitle": {
+              fontWeight: "bold",
+            },
+            "& .MuiDataGrid-virtualScroller": {
+              backgroundColor: colors.primary[400],
+            },
+            "& .MuiDataGrid-footerContainer": {
+              backgroundColor: colors.blueAccent[700],
+              borderTop: "none",
+            },
+            "& .MuiDataGrid-toolbarContainer": {
+              padding: "16px",
+              "& button": {
+                color: mode === "dark" ? colors.grey[100] : colors.grey[800],
+                "&:hover": {
+                  backgroundColor: mode === "dark" ? colors.primary[600] : colors.grey[200],
+                },
+              },
+              "& .MuiInput-root": {
+                color: mode === "dark" ? colors.grey[100] : colors.grey[800],
+                "& .MuiSvgIcon-root": {
+                  color: mode === "dark" ? colors.grey[100] : colors.grey[800],
+                },
+              },
+            },
+            "& .MuiDataGrid-menuIcon": {
+              "& button": {
+                color: mode === "dark" ? colors.grey[100] : colors.grey[800],
+              },
+            },
+            "& .MuiDataGrid-menuList": {
+              backgroundColor: mode === "dark" ? colors.primary[600] : colors.grey[100],
+              "& .MuiMenuItem-root": {
+                color: mode === "dark" ? colors.grey[100] : colors.grey[800],
+                "&:hover": {
+                  backgroundColor: mode === "dark" ? colors.primary[500] : colors.grey[200],
+                },
+              },
+            },
+            "& .MuiDataGrid-panel": {
+              backgroundColor: mode === "dark" ? colors.primary[600] : colors.grey[100],
+              "& .MuiDataGrid-panelHeader": {
+                color: mode === "dark" ? colors.grey[100] : colors.grey[800],
+              },
+              "& .MuiFormControl-root": {
+                "& .MuiInputBase-root": {
+                  color: mode === "dark" ? colors.grey[100] : colors.grey[800],
+                },
+              },
+            },
+            "& .MuiCheckbox-root": {
+              color: mode === "dark" ? colors.grey[100] : colors.grey[800],
+            },
+          },
+        },
+      },
     },
     typography: {
       fontFamily: ["Source Sans Pro", "sans-serif"].join(","),
@@ -170,6 +235,6 @@ export const useMode = () => {
   return [theme, colorMode];
 };
 
-// ✅ NEW: Helper to create a fixed theme for special pages
+// Helper to create a fixed theme for special pages
 export const getFixedTheme = (mode = "dark") =>
   createTheme(themeSettings(mode));
