@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import {
   Box,
   Typography,
@@ -28,14 +28,8 @@ import CloseIcon from '@mui/icons-material/Close';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DownloadIcon from '@mui/icons-material/Download';
 import { motion } from "framer-motion";
-import { supabase } from '../../supabaseClient';
-import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
-import Papa from 'papaparse';
+import { useTransactionData } from './data';
 
-/**
- * Configuration object for transaction statuses with their display labels and colors
- */
 const STATUS_CONFIG = {
   BLOCKED: { label: 'Blocked', color: 'error' },
   LEGIT: { label: 'Legit', color: 'success' },
@@ -47,13 +41,35 @@ const STATUS_CONFIG = {
 };
 
 const TransactionHistory = () => {
-  // Access the current theme
   const theme = useTheme();
-  
-  /**
-   * Safely get colors with comprehensive fallbacks in case the theme tokens are not available
-   */
   const colorTokens = tokens(theme.palette.mode);
+  
+  // Use the custom hook for all data-related logic
+  const {
+    loading,
+    error,
+    snackbar,
+    paginationModel,
+    rowCount,
+    filters,
+    selectedTransaction,
+    open,
+    anchorEl,
+    handleFilterClick,
+    handleFilterClose,
+    handleFilterChange,
+    clearFilters,
+    handleOpen,
+    handleClose,
+    handleRefresh,
+    handleCloseSnackbar,
+    setPaginationModel,
+    exportToXLSX,
+    exportToCSV,
+    filteredTransactions
+  } = useTransactionData();
+
+  // Colors with fallbacks
   const colors = {
     grey: colorTokens?.grey || {
       100: "#f5f5f5",
@@ -70,7 +86,7 @@ const TransactionHistory = () => {
       100: "#d0d1d5",
       200: "#a1a4ab",
       300: "#727681",
-      400: "#434957", // Key color that was missing
+      400: "#434957",
       500: "#141b2d",
       600: "#101624",
       700: "#0c101b",
@@ -123,243 +139,7 @@ const TransactionHistory = () => {
     }
   };
 
-  // State declarations
-  const [open, setOpen] = useState(false); // Controls modal visibility
-  const [selectedTransaction, setSelectedTransaction] = useState(null); // Stores currently selected transaction
-  const [anchorEl, setAnchorEl] = useState(null); // Anchor for filter menu
-  const [filters, setFilters] = useState({ // Filter state
-    search: '',
-    type: '',
-    status: '',
-    minAmount: '',
-    maxAmount: '',
-    fraudOnly: false
-  });
-  const [transactions, setTransactions] = useState([]); // Transaction data
-  const [loading, setLoading] = useState(true); // Loading state
-  const [error, setError] = useState(null); // Error state
-  const [snackbar, setSnackbar] = useState({ // Snackbar notification state
-    open: false, 
-    message: '', 
-    severity: 'info' 
-  });
-  const [paginationModel, setPaginationModel] = useState({ // Pagination state
-    page: 0,
-    pageSize: 10,
-  });
-  const [rowCount, setRowCount] = useState(0); // Total row count for pagination
-
-  /**
-   * Generates a description for a transaction based on its type and parties involved
-   * @param {Object} transaction - The transaction object
-   * @returns {string} - Generated description
-   */
-  const generateDescription = useCallback((transaction) => {
-    const actions = {
-      TRANSFER: 'Transfer',
-      PAYMENT: 'Payment',
-      WITHDRAWAL: 'Withdrawal',
-      DEPOSIT: 'Deposit'
-    };
-    const action = actions[transaction.transaction_type] || 'Transaction';
-    return `${action} from ${transaction.initiator_id} to ${transaction.recipient_id}`;
-  }, []);
-
-  /**
-   * Formats a raw transaction object into a display-friendly format
-   * @param {Object} transaction - The raw transaction data
-   * @returns {Object} - Formatted transaction data
-   */
-  const formatTransaction = useCallback((transaction) => ({
-    id: transaction.id,
-    date: new Date(transaction.transaction_time).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }),
-    transactionId: `TRX-${transaction.id.toString().slice(0, 8).toUpperCase()}`,
-    type: transaction.transaction_type,
-    amount: transaction.amount,
-    status: transaction.status || 'PENDING',
-    description: transaction.description || generateDescription(transaction),
-    sender: transaction.sender_phone || `+255${Math.floor(100000000 + Math.random() * 900000000)}`,
-    receiver: transaction.recipient_phone || `+255${Math.floor(100000000 + Math.random() * 900000000)}`,
-    is_fraud: transaction.is_fraud,
-    fraud_probability: transaction.fraud_probability,
-    fraud_alert_severity: transaction.fraud_alert_severity
-  }), [generateDescription]);
-
-  // Handler functions
-
-  /**
-   * Opens the filter menu
-   * @param {Event} event - The click event
-   */
-  const handleFilterClick = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  /**
-   * Closes the filter menu
-   */
-  const handleFilterClose = () => {
-    setAnchorEl(null);
-  };
-
-  /**
-   * Handles changes to filter inputs
-   * @param {string} prop - The filter property to update
-   * @returns {Function} - Event handler function
-   */
-  const handleFilterChange = (prop) => (event) => {
-    setFilters({ ...filters, [prop]: event.target.value });
-  };
-
-  /**
-   * Resets all filters to their default values
-   */
-  const clearFilters = () => {
-    setFilters({
-      search: '',
-      type: '',
-      status: '',
-      minAmount: '',
-      maxAmount: '',
-      fraudOnly: false
-    });
-  };
-
-  /**
-   * Opens the transaction details modal
-   * @param {Object} transaction - The transaction to display
-   */
-  const handleOpen = (transaction) => {
-    setSelectedTransaction(transaction);
-    setOpen(true);
-  };
-
-  /**
-   * Closes the transaction details modal
-   */
-  const handleClose = () => {
-    setOpen(false);
-  };
-
-  /**
-   * Fetches transactions from the database with applied filters
-   */
-  const fetchTransactions = useCallback(async () => {
-    try {
-      setLoading(true);
-      
-      // Initialize the query
-      let query = supabase
-        .from('transactions')
-        .select('*', { count: 'exact' })
-        .order('transaction_time', { ascending: false });
-
-      // Apply filters if they exist
-      if (filters.search) {
-        query = query.or(`description.ilike.%${filters.search}%,initiator_id.ilike.%${filters.search}%,recipient_id.ilike.%${filters.search}%`);
-      }
-      if (filters.type) {
-        query = query.eq('transaction_type', filters.type);
-      }
-      if (filters.status) {
-        query = query.eq('status', filters.status);
-      }
-      if (filters.minAmount) {
-        query = query.gte('amount', filters.minAmount);
-      }
-      if (filters.maxAmount) {
-        query = query.lte('amount', filters.maxAmount);
-      }
-      if (filters.fraudOnly) {
-        query = query.eq('is_fraud', true);
-      }
-
-      // Execute the query with pagination
-      const { data, count, error } = await query
-        .range(
-          paginationModel.page * paginationModel.pageSize,
-          (paginationModel.page + 1) * paginationModel.pageSize - 1
-        );
-
-      if (error) throw error;
-
-      // Format and set the transaction data
-      setTransactions(data.map(formatTransaction));
-      setRowCount(count || 0);
-    } catch (err) {
-      setError(err.message);
-      setSnackbar({ 
-        open: true, 
-        message: `Error loading transactions: ${err.message}`, 
-        severity: 'error' 
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [filters, paginationModel, formatTransaction]);
-
-  // Fetch transactions when component mounts or filters/pagination changes
-  useEffect(() => {
-    fetchTransactions();
-  }, [fetchTransactions]);
-
-  // Set up real-time subscription to transaction changes
-  useEffect(() => {
-    const subscription = supabase
-      .channel('transactions')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'transactions'
-      }, (payload) => {
-        // Refresh transactions when changes occur
-        fetchTransactions();
-        if (payload.eventType === 'INSERT') {
-          // Show notification for new transactions
-          const newTransaction = formatTransaction(payload.new);
-          setSnackbar({
-            open: true,
-            message: `New transaction: ${newTransaction.transactionId}`,
-            severity: 'info'
-          });
-        }
-      })
-      .subscribe();
-
-    // Clean up subscription on unmount
-    return () => {
-      supabase.removeChannel(subscription);
-    };
-  }, [fetchTransactions, formatTransaction]);
-
-  /**
-   * Exports transactions to Excel format
-   */
-  const exportToXLSX = () => {
-    const worksheet = XLSX.utils.json_to_sheet(transactions);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
-    XLSX.writeFile(workbook, 'transactions.xlsx');
-  };
-  
-  /**
-   * Exports transactions to CSV format
-   */
-  const exportToCSV = () => {
-    const csv = Papa.unparse(transactions);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    saveAs(blob, 'transactions.csv');
-  };
-
-  /**
-   * Column definitions for the DataGrid
-   */
+  // Column definitions for the DataGrid
   const columns = [
     { field: "date", headerName: "Date/Time", flex: 1, minWidth: 180 },
     { field: "transactionId", headerName: "Transaction ID", flex: 1, minWidth: 150 },
@@ -405,41 +185,6 @@ const TransactionHistory = () => {
     },
   ];
 
-  /**
-   * Filters transactions based on current filter state
-   */
-  const filteredTransactions = transactions.filter(transaction => {
-    return (
-      (filters.search === '' || 
-       transaction.transactionId.toLowerCase().includes(filters.search.toLowerCase()) || 
-       transaction.description.toLowerCase().includes(filters.search.toLowerCase())) &&
-      (filters.type === '' || transaction.type === filters.type) &&
-      (filters.status === '' || transaction.status === filters.status) &&
-      (filters.minAmount === '' || transaction.amount >= Number(filters.minAmount)) &&
-      (filters.maxAmount === '' || transaction.amount <= Number(filters.maxAmount)) &&
-      (!filters.fraudOnly || transaction.is_fraud)
-    );
-  });
-
-  /**
-   * Refreshes the transaction data
-   */
-  const handleRefresh = () => {
-    fetchTransactions();
-    setSnackbar({ 
-      open: true, 
-      message: 'Transactions refreshed', 
-      severity: 'success' 
-    });
-  };
-
-  /**
-   * Closes the snackbar notification
-   */
-  const handleCloseSnackbar = () => {
-    setSnackbar(prev => ({ ...prev, open: false }));
-  };
-
   return (
     <Box m="20px">
       {/* Header section with title and action buttons */}
@@ -448,7 +193,6 @@ const TransactionHistory = () => {
         subtitle="Detailed list of financial transactions"
         rightContent={
           <Box sx={{ display: 'flex', gap: 1 }}>
-            {/* Refresh button */}
             <Button
               variant="outlined"
               startIcon={<RefreshIcon />}
@@ -465,7 +209,6 @@ const TransactionHistory = () => {
               Refresh
             </Button>
             
-            {/* Export to Excel button */}
             <Button
               variant="contained"
               color="secondary"
@@ -478,10 +221,9 @@ const TransactionHistory = () => {
                 }
               }}
             >
-              XLSX
+              PDF
             </Button>
             
-            {/* Export to CSV button */}
             <Button
               variant="contained"
               color="secondary"
@@ -494,7 +236,7 @@ const TransactionHistory = () => {
                 }
               }}
             >
-              CSV
+              Excel
             </Button>
           </Box>
         }
@@ -510,7 +252,6 @@ const TransactionHistory = () => {
           )}
         </Box>
         <Box>
-          {/* Filter button */}
           <Button
             variant="contained"
             color="secondary"
@@ -545,7 +286,6 @@ const TransactionHistory = () => {
           }
         }}
       >
-        {/* Search filter */}
         <TextField
           label="Search (ID, Description)"
           value={filters.search}
@@ -556,7 +296,6 @@ const TransactionHistory = () => {
           disabled={loading}
         />
         
-        {/* Transaction type filter */}
         <TextField
           label="Transaction Type"
           value={filters.type}
@@ -574,7 +313,6 @@ const TransactionHistory = () => {
           <MenuItem value="DEPOSIT">Deposit</MenuItem>
         </TextField>
         
-        {/* Status filter */}
         <TextField
           label="Status"
           value={filters.status}
@@ -591,7 +329,6 @@ const TransactionHistory = () => {
           ))}
         </TextField>
         
-        {/* Amount range filters */}
         <Box display="flex" gap={2} mt={2}>
           <TextField
             label="Min Amount (TZS)"
@@ -621,19 +358,17 @@ const TransactionHistory = () => {
           />
         </Box>
         
-        {/* Fraud-only toggle */}
         <Box display="flex" alignItems="center" mt={2}>
           <TextField
             label="Fraud Only"
-            value={filters.fraudOnly}
-            onChange={(e) => setFilters({...filters, fraudOnly: e.target.checked})}
+            checked={filters.fraudOnly}
+            onChange={handleFilterChange('fraudOnly')}
             type="checkbox"
             disabled={loading}
           />
           <Typography variant="body2" ml={1}>Show only fraudulent transactions</Typography>
         </Box>
         
-        {/* Filter action buttons */}
         <Box display="flex" justifyContent="space-between" mt={3}>
           <Button 
             variant="outlined" 
@@ -647,7 +382,7 @@ const TransactionHistory = () => {
             variant="contained" 
             onClick={() => {
               handleFilterClose();
-              fetchTransactions();
+              handleRefresh();
             }}
             disabled={loading}
             sx={{ backgroundColor: colors.blueAccent[600] }}
@@ -700,12 +435,10 @@ const TransactionHistory = () => {
         }}
       >
         {loading ? (
-          // Loading indicator
           <Box display="flex" justifyContent="center" alignItems="center" height="100%">
             <CircularProgress />
           </Box>
         ) : (
-          // Data grid component
           <DataGrid
             rows={filteredTransactions}
             columns={columns}
@@ -756,7 +489,6 @@ const TransactionHistory = () => {
           }}>
             {selectedTransaction && (
               <>
-                {/* Modal header */}
                 <Typography variant="h4" gutterBottom sx={{ 
                   textAlign: 'center', 
                   mb: 4,
@@ -767,7 +499,6 @@ const TransactionHistory = () => {
                   Transaction Details
                 </Typography>
                 
-                {/* Sender/Receiver visualization */}
                 <Box sx={{ 
                   display: 'flex', 
                   justifyContent: 'space-between', 
@@ -775,7 +506,6 @@ const TransactionHistory = () => {
                   mb: 4,
                   position: 'relative'
                 }}>
-                  {/* Sender box */}
                   <Box sx={{ 
                     textAlign: 'center',
                     p: 3,
@@ -792,7 +522,6 @@ const TransactionHistory = () => {
                     </Typography>
                   </Box>
                   
-                  {/* Animated transfer visualization */}
                   <Box sx={{ 
                     position: 'absolute', 
                     left: '50%', 
@@ -852,7 +581,6 @@ const TransactionHistory = () => {
                     </motion.div>
                   </Box>
                   
-                  {/* Receiver box */}
                   <Box sx={{ 
                     textAlign: 'center',
                     p: 3,
@@ -870,7 +598,6 @@ const TransactionHistory = () => {
                   </Box>
                 </Box>
                 
-                {/* Transaction details section */}
                 <Box sx={{ 
                   mt: 4,
                   p: 3,
