@@ -20,6 +20,7 @@
     "@nivo/line": "^0.88.0",
     "@nivo/pie": "^0.88.0",
     "@supabase/supabase-js": "^2.49.4",
+    "@vercel/speed-insights": "^1.2.0",
     "axios": "^1.6.2",
     "cloudinary": "^2.6.0",
     "file-saver": "^2.0.5",

@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { SpeedInsights } from "@vercel/speed-insights/react"
 
 import { ColorModeContext, useMode } from './theme';
 import { useAuth } from './context/AuthContext';
