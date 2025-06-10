@@ -3,10 +3,10 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { SpeedInsights } from "@vercel/speed-insights/react"
 
 import { ColorModeContext, useMode } from './theme';
 import { useAuth } from './context/AuthContext';
+import { SpeedInsights } from '@vercel/speed-insights/react'; // ✅ Vercel Speed Insights for React
 
 // Auth Pages
 import Login from './components/Login';
@@ -31,10 +31,9 @@ import GeographyChart from './components/GeographyChart';
 
 function App() {
   const [theme, colorMode] = useMode();
-  const { currentUser, loading } = useAuth(); // 🧠 Supabase user + loading
+  const { currentUser, loading } = useAuth();
 
-  // ⏳ Wait for Supabase to check session
-  if (loading) return null; // Or return a loader like <CircularProgress />
+  if (loading) return null; // or a loader like <CircularProgress />
 
   return (
     <ColorModeContext.Provider value={colorMode}>
@@ -42,7 +41,6 @@ function App() {
         <CssBaseline />
         <Routes>
           {currentUser ? (
-            // 🔐 Authenticated Routes
             <Route element={<MainLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/" element={<Navigate to="/dashboard" />} />
@@ -59,7 +57,6 @@ function App() {
               <Route path="*" element={<Navigate to="/dashboard" />} />
             </Route>
           ) : (
-            // 🚫 Unauthenticated Routes
             <>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
@@ -72,6 +69,7 @@ function App() {
           )}
         </Routes>
         <ToastContainer position="top-right" autoClose={5000} />
+        <SpeedInsights /> {/* ✅ Vercel performance metrics */}
       </ThemeProvider>
     </ColorModeContext.Provider>
   );
