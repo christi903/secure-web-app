@@ -1,66 +1,76 @@
-import { useState, useEffect } from "react"; // React hooks
-import LineChart from "../../components/LineChart"; // Line chart component
-import BarChart from "../../components/BarChart"; // Bar chart component
-import GeographyChart from "../../components/GeographyChart"; // Map chart component
-import StatBox from "../../components/StatBox"; // Statistic box component
-import ProgressCircle from "../../components/ProgressCircle"; // Circular progress component
+// Dashboard.jsx
+import { useState, useEffect } from "react"; // React hooks for state and side effects
+import LineChart from "../../components/LineChart"; // Component for line chart visualization
+import BarChart from "../../components/BarChart"; // Component for bar chart visualization
+import GeographyChart from "../../components/GeographyChart"; // Component for geographic map visualization
+import StatBox from "../../components/StatBox"; // Component for displaying statistics
+import ProgressCircle from "../../components/ProgressCircle"; // Component for circular progress indicator
 import { Box, Button, IconButton, Typography, useTheme } from "@mui/material"; // Material UI components
-import { tokens } from "../../theme"; // Theme colors
-import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined"; // Download icon
-import VerifiedIcon from '@mui/icons-material/Verified'; // Verified icon
-import FlagCircleIcon from '@mui/icons-material/FlagCircle'; // Flag icon
-import BlockIcon from '@mui/icons-material/Block'; // Block icon
-import PaidIcon from '@mui/icons-material/Paid'; // Payment icon
+import { tokens } from "../../theme"; // Theme colors configuration
+import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined"; // Download icon from Material Icons
+import VerifiedIcon from '@mui/icons-material/Verified'; // Verified transaction icon
+import FlagCircleIcon from '@mui/icons-material/FlagCircle'; // Flagged transaction icon
+import BlockIcon from '@mui/icons-material/Block'; // Blocked transaction icon
+import PaidIcon from '@mui/icons-material/Paid'; // Payment transaction icon
 import Header from "../../components/Header"; // Custom header component
-import { supabase } from "../../supabaseClient"; // Supabase client
+import { supabase } from "../../supabaseClient"; // Supabase client for database operations
 
 const Dashboard = () => {
-  const theme = useTheme(); // Access MUI theme
-  const colors = tokens(theme.palette.mode); // Get theme colors
+  const theme = useTheme(); // Access MUI theme for styling
+  const colors = tokens(theme.palette.mode); // Get theme colors based on current mode (light/dark)
 
-  // State for transaction statistics
+  // State for transaction statistics with initial values
   const [transactionStats, setTransactionStats] = useState({
-    total: 0, // Total transactions
-    legit: 0, // Legitimate transactions
-    flagged: 0, // Flagged transactions
-    blocked: 0, // Blocked transactions
-    totalGrowth: "+0%", // Growth percentage
-    legitGrowth: "+0%", // Legit growth
-    flaggedGrowth: "+0%", // Flagged growth
-    blockedGrowth: "+0%" // Blocked growth
+    total: 0, // Total number of transactions
+    legit: 0, // Number of legitimate transactions
+    flagged: 0, // Number of flagged transactions
+    blocked: 0, // Number of blocked transactions
+    totalGrowth: "+0%", // Percentage growth of total transactions
+    legitGrowth: "+0%", // Percentage growth of legitimate transactions
+    flaggedGrowth: "+0%", // Percentage growth of flagged transactions
+    blockedGrowth: "+0%" // Percentage growth of blocked transactions
   });
 
-  // State for recent transactions
+  // State for recent transactions data
   const [recentTransactions, setRecentTransactions] = useState([]);
-  const [yearlyTotal, setYearlyTotal] = useState(0); // Yearly total for line chart
-  const [monthlyData, setMonthlyData] = useState([]); // Monthly data for bar chart
-  const [geoData, setGeoData] = useState([]); // Geographic data for map
-  const [loading, setLoading] = useState({ // Loading states
-    stats: true, // Stats loading
-    recent: true, // Recent transactions loading
-    charts: true // Charts loading
+  // State for yearly total transactions count
+  const [yearlyTotal, setYearlyTotal] = useState(0);
+  // State for monthly transaction data
+  const [monthlyData, setMonthlyData] = useState([]);
+  // State for geographic transaction data
+  const [geoData, setGeoData] = useState([]);
+  // State for loading status of different data sections
+  const [loading, setLoading] = useState({
+    stats: true, // Loading state for statistics
+    recent: true, // Loading state for recent transactions
+    charts: true // Loading state for charts data
   });
 
-  // Calculate progress values for the stat boxes
+  /**
+   * Calculates progress percentage for stat boxes
+   * @param {number} value - Current value
+   * @param {number} total - Total possible value
+   * @returns {number} - Progress percentage between 0 and 1
+   */
   const calculateProgress = (value, total) => {
     if (total === 0) return 0; // Prevent division by zero
     return Math.min(Math.max(value / total, 0), 1).toFixed(2); // Clamp between 0-1
   };
 
-  // Fetch transaction statistics from Supabase
+  // Fetch transaction statistics from Supabase database
   useEffect(() => {
     const fetchTransactionStats = async () => {
       try {
-        setLoading(prev => ({ ...prev, stats: true })); // Set loading state
+        setLoading(prev => ({ ...prev, stats: true })); // Set loading state to true
         
-        // Get total count of transactions
+        // Get total count of all transactions
         const { count: totalCount, error: totalError } = await supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true });
           
         if (totalError) throw totalError;
         
-        // Get count of legit transactions
+        // Get count of legitimate transactions
         const { count: legitCount, error: legitError } = await supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true })
@@ -84,10 +94,11 @@ const Dashboard = () => {
           
         if (blockedError) throw blockedError;
 
-        // Fetch previous period data for growth calculation
+        // Calculate growth percentages by comparing with previous period
         const oneMonthAgo = new Date();
         oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
         
+        // Get count of transactions from previous period
         const { count: prevTotal, error: prevTotalError } = await supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true })
@@ -95,13 +106,19 @@ const Dashboard = () => {
           
         if (prevTotalError) throw prevTotalError;
         
-        // Calculate growth percentages
+        /**
+         * Calculates growth percentage between current and previous values
+         * @param {number} current - Current period value
+         * @param {number} previous - Previous period value
+         * @returns {string} - Formatted growth percentage with +/-
+         */
         const calculateGrowth = (current, previous) => {
           if (!previous) return "+0%";
           const growth = ((current - previous) / previous) * 100;
           return growth > 0 ? `+${growth.toFixed(0)}%` : `${growth.toFixed(0)}%`;
         };
         
+        // Calculate growth percentages for different transaction types
         const totalGrowth = calculateGrowth(totalCount, prevTotal);
         const legitGrowth = calculateGrowth(legitCount, prevTotal * 0.9); // Estimated previous legit
         const flaggedGrowth = calculateGrowth(flaggedCount, prevTotal * 0.09); // Estimated previous flagged
@@ -124,12 +141,12 @@ const Dashboard = () => {
       } catch (error) {
         console.error("Error fetching transaction stats:", error);
       } finally {
-        setLoading(prev => ({ ...prev, stats: false }));
+        setLoading(prev => ({ ...prev, stats: false })); // Set loading state to false
       }
     };
 
     fetchTransactionStats();
-  }, []);
+  }, []); // Empty dependency array means this runs once on component mount
 
   // Fetch recent transactions from Supabase
   useEffect(() => {
@@ -137,7 +154,7 @@ const Dashboard = () => {
       try {
         setLoading(prev => ({ ...prev, recent: true }));
         
-        // Debug: Check if we have any transactions
+        // Debug: Check total transaction count
         const { count, error: countError } = await supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true });
@@ -145,7 +162,7 @@ const Dashboard = () => {
         if (countError) throw countError;
         console.log(`Total transactions in database: ${count}`);
         
-        // Fetch the transactions with all fields
+        // Fetch the 10 most recent transactions
         const { data, error } = await supabase
           .from('transactions')
           .select('*')
@@ -155,7 +172,7 @@ const Dashboard = () => {
         if (error) throw error;
         console.log("Fetched transactions:", data);
         
-        // Transform data to match the expected format
+        // Transform data to match expected format
         const formattedTransactions = data.map(tx => ({
           txId: tx.id || tx.transaction_id,
           user: tx.user_id || tx.user || "User",
@@ -183,7 +200,7 @@ const Dashboard = () => {
       try {
         setLoading(prev => ({ ...prev, charts: true }));
         
-        // Fetch monthly transaction data for bar chart
+        // Fetch monthly transaction data for current year
         const currentYear = new Date().getFullYear();
         const startOfYear = new Date(currentYear, 0, 1).toISOString();
         const endOfYear = new Date(currentYear, 11, 31).toISOString();
@@ -196,13 +213,14 @@ const Dashboard = () => {
           
         if (monthlyError) throw monthlyError;
         
-        // Process monthly data
+        // Process monthly data into totals per month
         const monthlyTotals = Array(12).fill(0); // Initialize array for 12 months
         monthlyData?.forEach(tx => {
           const month = new Date(tx.created_at).getMonth();
           monthlyTotals[month] += tx.amount || 0;
         });
         
+        // Format monthly data for bar chart
         const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         const formattedMonthlyData = monthlyTotals.map((total, index) => ({
           month: monthNames[index],
@@ -211,7 +229,7 @@ const Dashboard = () => {
         
         setMonthlyData(formattedMonthlyData);
         
-        // Fetch geographic data
+        // Fetch geographic transaction data
         const { data: geoData, error: geoError } = await supabase
           .from('transactions')
           .select('location, amount')
@@ -219,7 +237,7 @@ const Dashboard = () => {
           
         if (geoError) throw geoError;
         
-        // Process geographic data
+        // Process geographic data into counts by location
         const geoMap = {};
         geoData?.forEach(tx => {
           if (!tx.location) return;
@@ -229,6 +247,7 @@ const Dashboard = () => {
           geoMap[tx.location] += 1;
         });
         
+        // Format geographic data for map chart
         const formattedGeoData = Object.entries(geoMap).map(([id, value]) => ({
           id,
           value
@@ -246,7 +265,9 @@ const Dashboard = () => {
     fetchChartData();
   }, []);
 
-  // Handle report download
+  /**
+   * Handles report download action
+   */
   const handleDownloadReport = () => {
     console.log("Downloading report...");
     alert("Report download started!"); // Placeholder for actual download functionality
@@ -282,6 +303,7 @@ const Dashboard = () => {
         gap="20px"
       >
         {/* ROW 1: STAT BOXES */}
+        {/* Total Transactions Stat Box */}
         <Box
           gridColumn="span 3"
           backgroundColor={colors.primary[400]}
@@ -302,6 +324,7 @@ const Dashboard = () => {
           />
         </Box>
 
+        {/* Legit Transactions Stat Box */}
         <Box
           gridColumn="span 3"
           backgroundColor={colors.primary[400]}
@@ -322,6 +345,7 @@ const Dashboard = () => {
           />
         </Box>
 
+        {/* Flagged Transactions Stat Box */}
         <Box
           gridColumn="span 3"
           backgroundColor={colors.primary[400]}
@@ -342,6 +366,7 @@ const Dashboard = () => {
           />
         </Box>
 
+        {/* Blocked Transactions Stat Box */}
         <Box
           gridColumn="span 3"
           backgroundColor={colors.primary[400]}
@@ -363,6 +388,7 @@ const Dashboard = () => {
         </Box>
 
         {/* ROW 2: LINE CHART AND RECENT TRANSACTIONS */}
+        {/* Line Chart showing yearly transactions */}
         <Box
           gridColumn="span 8"
           gridRow="span 2"
@@ -404,6 +430,7 @@ const Dashboard = () => {
           </Box>
         </Box>
 
+        {/* Recent Transactions List */}
         <Box
           gridColumn="span 4"
           gridRow="span 2"
@@ -422,6 +449,7 @@ const Dashboard = () => {
               Recent Transactions
             </Typography>
           </Box>
+          {/* Loading state for recent transactions */}
           {loading.recent ? (
             <Box p="15px">
               <Typography color={colors.grey[100]}>Loading recent transactions...</Typography>
@@ -431,6 +459,7 @@ const Dashboard = () => {
               <Typography color={colors.grey[100]}>No recent transactions found.</Typography>
             </Box>
           ) : (
+            // Display list of recent transactions
             recentTransactions.map((transaction, i) => (
               <Box
                 key={`${transaction.txId}-${i}`}
@@ -466,6 +495,7 @@ const Dashboard = () => {
         </Box>
 
         {/* ROW 3: PROGRESS CIRCLE, BAR CHART AND GEOGRAPHY CHART */}
+        {/* Transactions Summary with Progress Circle */}
         <Box
           gridColumn="span 4"
           gridRow="span 2"
@@ -498,6 +528,7 @@ const Dashboard = () => {
           </Box>
         </Box>
 
+        {/* Monthly Transactions Bar Chart */}
         <Box
           gridColumn="span 4"
           gridRow="span 2"
@@ -515,6 +546,7 @@ const Dashboard = () => {
           </Box>
         </Box>
 
+        {/* Geography Based Traffic Map */}
         <Box
           gridColumn="span 4"
           gridRow="span 2"
