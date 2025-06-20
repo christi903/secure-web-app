@@ -1,3 +1,4 @@
+// TransactionHistory.jsx
 import React from 'react';
 import {
   Box,
@@ -16,60 +17,61 @@ import {
   Alert,
   Snackbar,
   IconButton
-} from "@mui/material";
-import { DataGrid, GridToolbar } from "@mui/x-data-grid";
-import { tokens } from "../../theme";
-import Header from "../../components/Header";
-import PhoneIphoneIcon from '@mui/icons-material/PhoneIphone';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import CurrencyExchangeIcon from '@mui/icons-material/CurrencyExchange';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import CloseIcon from '@mui/icons-material/Close';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import DownloadIcon from '@mui/icons-material/Download';
-import { motion } from "framer-motion";
-import { useTransactionData } from './data';
+} from "@mui/material"; // Material UI components
+import { DataGrid, GridToolbar } from "@mui/x-data-grid"; // Data grid components
+import { tokens } from "../../theme"; // Theme colors
+import Header from "../../components/Header"; // Custom header component
+import PhoneIphoneIcon from '@mui/icons-material/PhoneIphone'; // Phone icon
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward'; // Arrow icon
+import CurrencyExchangeIcon from '@mui/icons-material/CurrencyExchange'; // Currency icon
+import FilterListIcon from '@mui/icons-material/FilterList'; // Filter icon
+import CloseIcon from '@mui/icons-material/Close'; // Close icon
+import RefreshIcon from '@mui/icons-material/Refresh'; // Refresh icon
+import DownloadIcon from '@mui/icons-material/Download'; // Download icon
+import { motion } from "framer-motion"; // Animation library
+import { useTransactionData } from './data'; // Custom hook for transaction data
 
+// Configuration for transaction status display
 const STATUS_CONFIG = {
-  BLOCKED: { label: 'Blocked', color: 'error' },
-  LEGIT: { label: 'Legit', color: 'success' },
-  FLAGGED: { label: 'Flagged', color: 'warning' },
-  COMPLETED: { label: 'Completed', color: 'success' },
-  PENDING: { label: 'Pending', color: 'warning' },
-  FAILED: { label: 'Failed', color: 'error' },
-  CONFIRMED: { label: 'Confirmed', color: 'info' }
+  BLOCKED: { label: 'Blocked', color: 'error' }, // Blocked transaction styling
+  LEGIT: { label: 'Legit', color: 'success' }, // Legitimate transaction styling
+  FLAGGED: { label: 'Flagged', color: 'warning' }, // Flagged transaction styling
+  COMPLETED: { label: 'Completed', color: 'success' }, // Completed transaction styling
+  PENDING: { label: 'Pending', color: 'warning' }, // Pending transaction styling
+  FAILED: { label: 'Failed', color: 'error' }, // Failed transaction styling
+  CONFIRMED: { label: 'Confirmed', color: 'info' } // Confirmed transaction styling
 };
 
 const TransactionHistory = () => {
-  const theme = useTheme();
-  const colorTokens = tokens(theme.palette.mode);
+  const theme = useTheme(); // Access MUI theme
+  const colorTokens = tokens(theme.palette.mode); // Get theme tokens based on current mode
   
-  // Use the custom hook for all data-related logic
+  // Use custom hook for all data-related logic
   const {
-    loading,
-    error,
-    snackbar,
-    paginationModel,
-    rowCount,
-    filters,
-    selectedTransaction,
-    open,
-    anchorEl,
-    handleFilterClick,
-    handleFilterClose,
-    handleFilterChange,
-    clearFilters,
-    handleOpen,
-    handleClose,
-    handleRefresh,
-    handleCloseSnackbar,
-    setPaginationModel,
-    exportToXLSX,
-    exportToCSV,
-    filteredTransactions
+    loading, // Loading state
+    error, // Error state
+    snackbar, // Snackbar notification state
+    paginationModel, // Pagination state
+    rowCount, // Total row count
+    filters, // Filter values
+    selectedTransaction, // Currently selected transaction
+    open, // Modal open state
+    anchorEl, // Filter menu anchor element
+    handleFilterClick, // Filter menu click handler
+    handleFilterClose, // Filter menu close handler
+    handleFilterChange, // Filter value change handler
+    clearFilters, // Clear all filters handler
+    handleOpen, // Open modal handler
+    handleClose, // Close modal handler
+    handleRefresh, // Refresh data handler
+    handleCloseSnackbar, // Close snackbar handler
+    setPaginationModel, // Pagination change handler
+    exportToXLSX, // Export to Excel handler
+    exportToCSV, // Export to CSV handler
+    filteredTransactions // Filtered transactions data
   } = useTransactionData();
 
-  // Colors with fallbacks
+  // Colors with fallbacks in case theme tokens are not available
   const colors = {
     grey: colorTokens?.grey || {
       100: "#f5f5f5",
@@ -141,15 +143,15 @@ const TransactionHistory = () => {
 
   // Column definitions for the DataGrid
   const columns = [
-    { field: "date", headerName: "Date/Time", flex: 1, minWidth: 180 },
-    { field: "transactionId", headerName: "Transaction ID", flex: 1, minWidth: 150 },
-    { field: "type", headerName: "Type", flex: 1, minWidth: 120 },
+    { field: "date", headerName: "Date/Time", flex: 1, minWidth: 180 }, // Date column
+    { field: "transactionId", headerName: "Transaction ID", flex: 1, minWidth: 150 }, // ID column
+    { field: "type", headerName: "Type", flex: 1, minWidth: 120 }, // Transaction type column
     { 
       field: "amount", 
       headerName: "Amount (TZS)", 
       flex: 1,
       minWidth: 120,
-      renderCell: ({ row }) => (
+      renderCell: ({ row }) => ( // Custom render for amount with formatting
         <Typography fontWeight="bold">
           {row.amount.toLocaleString()} TZS
         </Typography>
@@ -160,7 +162,7 @@ const TransactionHistory = () => {
       headerName: "Status",
       flex: 1,
       minWidth: 120,
-      renderCell: ({ row }) => {
+      renderCell: ({ row }) => { // Custom render for status with chip component
         const statusConfig = STATUS_CONFIG[row.status.toUpperCase()] || STATUS_CONFIG.PENDING;
         return (
           <Chip 
@@ -177,7 +179,7 @@ const TransactionHistory = () => {
       headerName: "Description", 
       flex: 2, 
       minWidth: 200,
-      renderCell: ({ row }) => (
+      renderCell: ({ row }) => ( // Custom render for description with text wrapping
         <Typography variant="body2" sx={{ whiteSpace: 'normal', lineHeight: '1.2' }}>
           {row.description}
         </Typography>
@@ -193,6 +195,7 @@ const TransactionHistory = () => {
         subtitle="Detailed list of financial transactions"
         rightContent={
           <Box sx={{ display: 'flex', gap: 1 }}>
+            {/* Refresh button */}
             <Button
               variant="outlined"
               startIcon={<RefreshIcon />}
@@ -209,6 +212,7 @@ const TransactionHistory = () => {
               Refresh
             </Button>
             
+            {/* PDF Export button */}
             <Button
               variant="contained"
               color="secondary"
@@ -224,6 +228,7 @@ const TransactionHistory = () => {
               PDF
             </Button>
             
+            {/* Excel Export button */}
             <Button
               variant="contained"
               color="secondary"
@@ -245,6 +250,7 @@ const TransactionHistory = () => {
       {/* Filter and error display section */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Box flex={1}>
+          {/* Error alert display */}
           {error && (
             <Alert severity="error" sx={{ width: '100%' }}>
               {error}
@@ -252,6 +258,7 @@ const TransactionHistory = () => {
           )}
         </Box>
         <Box>
+          {/* Filter button */}
           <Button
             variant="contained"
             color="secondary"
@@ -286,6 +293,7 @@ const TransactionHistory = () => {
           }
         }}
       >
+        {/* Search filter */}
         <TextField
           label="Search (ID, Description)"
           value={filters.search}
@@ -296,6 +304,7 @@ const TransactionHistory = () => {
           disabled={loading}
         />
         
+        {/* Transaction type filter */}
         <TextField
           label="Transaction Type"
           value={filters.type}
@@ -313,6 +322,7 @@ const TransactionHistory = () => {
           <MenuItem value="DEPOSIT">Deposit</MenuItem>
         </TextField>
         
+        {/* Status filter */}
         <TextField
           label="Status"
           value={filters.status}
@@ -329,6 +339,7 @@ const TransactionHistory = () => {
           ))}
         </TextField>
         
+        {/* Amount range filters */}
         <Box display="flex" gap={2} mt={2}>
           <TextField
             label="Min Amount (TZS)"
@@ -358,6 +369,7 @@ const TransactionHistory = () => {
           />
         </Box>
         
+        {/* Fraud only checkbox */}
         <Box display="flex" alignItems="center" mt={2}>
           <TextField
             label="Fraud Only"
@@ -369,6 +381,7 @@ const TransactionHistory = () => {
           <Typography variant="body2" ml={1}>Show only fraudulent transactions</Typography>
         </Box>
         
+        {/* Filter action buttons */}
         <Box display="flex" justifyContent="space-between" mt={3}>
           <Button 
             variant="outlined" 
@@ -398,65 +411,67 @@ const TransactionHistory = () => {
         height="75vh"
         sx={{
           '& .MuiDataGrid-root': {
-            border: 'none',
+            border: 'none', // Remove border
           },
           '& .MuiDataGrid-columnHeaders': {
-            backgroundColor: colors.blueAccent[700],
-            color: colors.grey[100],
-            fontSize: '16px',
+            backgroundColor: colors.blueAccent[700], // Column header background
+            color: colors.grey[100], // Column header text color
+            fontSize: '16px', // Column header font size
           },
           '& .MuiDataGrid-columnHeaderTitle': {
-            fontWeight: 'bold',
+            fontWeight: 'bold', // Column header title weight
           },
           '& .MuiDataGrid-columnHeader': {
             backgroundColor: colors.blueAccent[700],
             '&:focus, &:focus-within': {
-              outline: 'none !important',
+              outline: 'none !important', // Remove focus outline
             },
           },
           "& .MuiDataGrid-virtualScroller": {
-            backgroundColor: colors.primary[400],
+            backgroundColor: colors.primary[400], // Table body background
           },
           "& .MuiDataGrid-footerContainer": {
-            backgroundColor: colors.blueAccent[700],
+            backgroundColor: colors.blueAccent[700], // Footer background
             minHeight: "40px",
             borderTop: "1px solid #ccc",
             alignItems: "center",
           },
           "& .MuiTablePagination-root": {
-            fontSize: "0.8rem",
+            fontSize: "0.8rem", // Pagination font size
           },
           "& .MuiDataGrid-row": {
-            cursor: "pointer",
+            cursor: "pointer", // Row cursor
             "&:hover": {
-              backgroundColor: colors.blueAccent[500],
+              backgroundColor: colors.blueAccent[500], // Row hover background
             },
           }
         }}
       >
+        {/* Loading indicator */}
         {loading ? (
           <Box display="flex" justifyContent="center" alignItems="center" height="100%">
             <CircularProgress />
           </Box>
         ) : (
+          // DataGrid component
           <DataGrid
-            rows={filteredTransactions}
-            columns={columns}
-            rowCount={rowCount}
-            loading={loading}
-            pageSizeOptions={[10, 25, 50, 100]}
-            paginationModel={paginationModel}
-            paginationMode="server"
-            onPaginationModelChange={setPaginationModel}
-            onRowClick={(params) => handleOpen(params.row)}
+            rows={filteredTransactions} // Data source
+            columns={columns} // Column configuration
+            rowCount={rowCount} // Total row count
+            loading={loading} // Loading state
+            pageSizeOptions={[10, 25, 50, 100]} // Page size options
+            paginationModel={paginationModel} // Current pagination state
+            paginationMode="server" // Server-side pagination
+            onPaginationModelChange={setPaginationModel} // Pagination change handler
+            onRowClick={(params) => handleOpen(params.row)} // Row click handler
             slots={{
-              toolbar: GridToolbar,
+              toolbar: GridToolbar, // Add grid toolbar
             }}
             slotProps={{
               toolbar: {
-                showQuickFilter: true,
-                printOptions: { disableToolbarButton: true },
-                csvOptions: { disableToolbarButton: true },
+                showQuickFilter: true, // Enable quick filter
+                printOptions: { disableToolbarButton: true }, // Disable print
+                csvOptions: { disableToolbarButton: true }, // Disable built-in CSV export
               },
             }}
           />
@@ -470,7 +485,7 @@ const TransactionHistory = () => {
         closeAfterTransition
         BackdropComponent={Backdrop}
         BackdropProps={{
-          timeout: 500,
+          timeout: 500, // Transition timeout
         }}
       >
         <Fade in={open}>
@@ -481,7 +496,7 @@ const TransactionHistory = () => {
             transform: 'translate(-50%, -50%)',
             width: '80%',
             maxWidth: 800,
-            bgcolor: colors.primary[400],
+            bgcolor: colors.primary[400], // Modal background
             boxShadow: 24,
             p: 4,
             borderRadius: '16px',
@@ -489,6 +504,7 @@ const TransactionHistory = () => {
           }}>
             {selectedTransaction && (
               <>
+                {/* Modal header */}
                 <Typography variant="h4" gutterBottom sx={{ 
                   textAlign: 'center', 
                   mb: 4,
@@ -499,6 +515,7 @@ const TransactionHistory = () => {
                   Transaction Details
                 </Typography>
                 
+                {/* Sender and receiver visualization */}
                 <Box sx={{ 
                   display: 'flex', 
                   justifyContent: 'space-between', 
@@ -506,6 +523,7 @@ const TransactionHistory = () => {
                   mb: 4,
                   position: 'relative'
                 }}>
+                  {/* Sender box */}
                   <Box sx={{ 
                     textAlign: 'center',
                     p: 3,
@@ -522,6 +540,7 @@ const TransactionHistory = () => {
                     </Typography>
                   </Box>
                   
+                  {/* Animated transaction flow */}
                   <Box sx={{ 
                     position: 'absolute', 
                     left: '50%', 
@@ -531,7 +550,7 @@ const TransactionHistory = () => {
                   }}>
                     <motion.div
                       animate={{
-                        x: [-10, 10, -10],
+                        x: [-10, 10, -10], // Animation path
                       }}
                       transition={{
                         duration: 2,
@@ -546,7 +565,7 @@ const TransactionHistory = () => {
                     </motion.div>
                     <motion.div
                       animate={{
-                        x: [-5, 5, -5],
+                        x: [-5, 5, -5], // Animation path
                       }}
                       transition={{
                         duration: 2,
@@ -565,7 +584,7 @@ const TransactionHistory = () => {
                     </motion.div>
                     <motion.div
                       animate={{
-                        x: [-10, 10, -10],
+                        x: [-10, 10, -10], // Animation path
                       }}
                       transition={{
                         duration: 2,
@@ -581,6 +600,7 @@ const TransactionHistory = () => {
                     </motion.div>
                   </Box>
                   
+                  {/* Receiver box */}
                   <Box sx={{ 
                     textAlign: 'center',
                     p: 3,
@@ -598,6 +618,7 @@ const TransactionHistory = () => {
                   </Box>
                 </Box>
                 
+                {/* Transaction details section */}
                 <Box sx={{ 
                   mt: 4,
                   p: 3,
@@ -608,18 +629,22 @@ const TransactionHistory = () => {
                     Transaction Details
                   </Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                    {/* Transaction ID */}
                     <Box sx={{ flex: '1 1 200px' }}>
                       <Typography variant="body2" color="textSecondary">Transaction ID:</Typography>
                       <Typography variant="body1">{selectedTransaction.transactionId}</Typography>
                     </Box>
+                    {/* Date/Time */}
                     <Box sx={{ flex: '1 1 200px' }}>
                       <Typography variant="body2" color="textSecondary">Date/Time:</Typography>
                       <Typography variant="body1">{selectedTransaction.date}</Typography>
                     </Box>
+                    {/* Type */}
                     <Box sx={{ flex: '1 1 200px' }}>
                       <Typography variant="body2" color="textSecondary">Type:</Typography>
                       <Typography variant="body1">{selectedTransaction.type}</Typography>
                     </Box>
+                    {/* Status */}
                     <Box sx={{ flex: '1 1 200px' }}>
                       <Typography variant="body2" color="textSecondary">Status:</Typography>
                       <Chip 
@@ -629,6 +654,7 @@ const TransactionHistory = () => {
                       />
                     </Box>
                   </Box>
+                  {/* Description */}
                   <Box sx={{ mt: 2 }}>
                     <Typography variant="body2" color="textSecondary">Description:</Typography>
                     <Typography variant="body1">{selectedTransaction.description}</Typography>
@@ -643,12 +669,12 @@ const TransactionHistory = () => {
       {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={6000}
+        autoHideDuration={6000} // Auto-hide after 6 seconds
         onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} // Position
       >
         <Alert
-          severity={snackbar.severity}
+          severity={snackbar.severity} // Alert type (error, warning, success, etc.)
           action={
             <IconButton
               size="small"
