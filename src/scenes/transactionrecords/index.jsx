@@ -37,7 +37,7 @@ const STATUS_CONFIG = {
   LEGIT: { label: 'Legit', color: 'success' }, // Legitimate transaction styling
   FLAGGED: { label: 'Flagged', color: 'warning' }, // Flagged transaction styling
   COMPLETED: { label: 'Completed', color: 'success' }, // Completed transaction styling
-  PENDING: { label: 'Pending', color: 'warning' }, // Pending transaction styling
+  PENDING: { label: 'Legitimate', color: 'success' }, // Pending transaction styling
   FAILED: { label: 'Failed', color: 'error' }, // Failed transaction styling
   CONFIRMED: { label: 'Confirmed', color: 'info' } // Confirmed transaction styling
 };
