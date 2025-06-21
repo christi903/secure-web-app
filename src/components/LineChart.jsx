@@ -52,19 +52,11 @@ const LineChart = ({ isCustomLineColors = false, isDashboard = false }) => {
             setError(null);
             
             try {
-                const currentYear = new Date().getFullYear();
-                const startDate = new Date(currentYear, 0, 1).toISOString();
-                const endDate = new Date(currentYear, 11, 31).toISOString();
-
                 const { data, error: supabaseError } = await supabase
                     .from("transactions")
-                    .select("transaction_time, status")
-                    .gte("transaction_time", startDate)
-                    .lte("transaction_time", endDate);
+                    .select("transaction_time, status");
 
                 if (supabaseError) throw supabaseError;
-
-                console.log("Fetched transactions:", data);
 
                 // Initialize data structure for all months
                 const monthlyData = {};
@@ -78,22 +70,39 @@ const LineChart = ({ isCustomLineColors = false, isDashboard = false }) => {
                     const month = date.getMonth();
                     const statusKey = status.toLowerCase();
                     
-                    if (monthlyData[statusKey] !== undefined) {
-                        monthlyData[statusKey][month]++;
-                    }
+                    if (statusKey === "legitimate") monthlyData.legitimate[month]++;
+                    else if (statusKey === "flagged") monthlyData.flagged[month]++;
+                    else if (statusKey === "blocked") monthlyData.blocked[month]++;
                 });
 
                 // Format data for Nivo Line chart
-                const formattedData = Object.entries(monthlyData).map(([status, counts]) => ({
-                    id: statusConfig[status].label,
-                    color: statusConfig[status].color,
-                    data: counts.map((count, monthIndex) => ({
-                        x: monthNames[monthIndex],
-                        y: count
-                    }))
-                }));
+                const formattedData = [
+                    {
+                        id: statusConfig.legitimate.label,
+                        color: statusConfig.legitimate.color,
+                        data: monthlyData.legitimate.map((count, monthIndex) => ({
+                            x: monthNames[monthIndex],
+                            y: count
+                        }))
+                    },
+                    {
+                        id: statusConfig.flagged.label,
+                        color: statusConfig.flagged.color,
+                        data: monthlyData.flagged.map((count, monthIndex) => ({
+                            x: monthNames[monthIndex],
+                            y: count
+                        }))
+                    },
+                    {
+                        id: statusConfig.blocked.label,
+                        color: statusConfig.blocked.color,
+                        data: monthlyData.blocked.map((count, monthIndex) => ({
+                            x: monthNames[monthIndex],
+                            y: count
+                        }))
+                    }
+                ].filter(series => series.data.some(point => point.y > 0));
 
-                console.log("Formatted chart data:", formattedData);
                 setLineData(formattedData);
             } catch (err) {
                 console.error("Error fetching transaction data:", err);
@@ -153,7 +162,7 @@ const LineChart = ({ isCustomLineColors = false, isDashboard = false }) => {
                 borderRadius: "8px",
                 color: colors.grey[100]
             }}>
-                No transaction data available for the current year.
+                No transaction data available.
             </div>
         );
     }
