@@ -1,76 +1,62 @@
-// Dashboard.jsx
-import { useState, useEffect } from "react"; // React hooks for state and side effects
-import LineChart from "../../components/LineChart"; // Component for line chart visualization
-import BarChart from "../../components/BarChart"; // Component for bar chart visualization
-import GeographyChart from "../../components/GeographyChart"; // Component for geographic map visualization
-import StatBox from "../../components/StatBox"; // Component for displaying statistics
-import ProgressCircle from "../../components/ProgressCircle"; // Component for circular progress indicator
-import { Box, Button, IconButton, Typography, useTheme } from "@mui/material"; // Material UI components
-import { tokens } from "../../theme"; // Theme colors configuration
-import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined"; // Download icon from Material Icons
-import VerifiedIcon from '@mui/icons-material/Verified'; // Verified transaction icon
-import FlagCircleIcon from '@mui/icons-material/FlagCircle'; // Flagged transaction icon
-import BlockIcon from '@mui/icons-material/Block'; // Blocked transaction icon
-import PaidIcon from '@mui/icons-material/Paid'; // Payment transaction icon
-import Header from "../../components/Header"; // Custom header component
-import { supabase } from "../../supabaseClient"; // Supabase client for database operations
+import { useState, useEffect } from "react";
+import LineChart from "../../components/LineChart";
+import BarChart from "../../components/BarChart";
+import GeographyChart from "../../components/GeographyChart";
+import StatBox from "../../components/StatBox";
+import ProgressCircle from "../../components/ProgressCircle";
+import { Box, Button, IconButton, Typography, useTheme, useMediaQuery } from "@mui/material";
+import { tokens } from "../../theme";
+import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
+import VerifiedIcon from '@mui/icons-material/Verified';
+import FlagCircleIcon from '@mui/icons-material/FlagCircle';
+import BlockIcon from '@mui/icons-material/Block';
+import PaidIcon from '@mui/icons-material/Paid';
+import Header from "../../components/Header";
+import { supabase } from "../../supabaseClient";
 
 const Dashboard = () => {
-  const theme = useTheme(); // Access MUI theme for styling
-  const colors = tokens(theme.palette.mode); // Get theme colors based on current mode (light/dark)
+  const theme = useTheme();
+  const colors = tokens(theme.palette.mode);
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMediumScreen = useMediaQuery(theme.breakpoints.between('sm', 'md'));
 
-  // State for transaction statistics with initial values
   const [transactionStats, setTransactionStats] = useState({
-    total: 0, // Total number of transactions
-    legit: 0, // Number of legitimate transactions
-    flagged: 0, // Number of flagged transactions
-    blocked: 0, // Number of blocked transactions
-    totalGrowth: "+0%", // Percentage growth of total transactions
-    legitGrowth: "+0%", // Percentage growth of legitimate transactions
-    flaggedGrowth: "+0%", // Percentage growth of flagged transactions
-    blockedGrowth: "+0%" // Percentage growth of blocked transactions
+    total: 0,
+    legit: 0,
+    flagged: 0,
+    blocked: 0,
+    totalGrowth: "+0%",
+    legitGrowth: "+0%",
+    flaggedGrowth: "+0%",
+    blockedGrowth: "+0%"
   });
 
-  // State for recent transactions data
   const [recentTransactions, setRecentTransactions] = useState([]);
-  // State for yearly total transactions count
   const [yearlyTotal, setYearlyTotal] = useState(0);
-  // State for monthly transaction data
   const [monthlyData, setMonthlyData] = useState([]);
-  // State for geographic transaction data
   const [geoData, setGeoData] = useState([]);
-  // State for loading status of different data sections
   const [loading, setLoading] = useState({
-    stats: true, // Loading state for statistics
-    recent: true, // Loading state for recent transactions
-    charts: true // Loading state for charts data
+    stats: true,
+    recent: true,
+    charts: true
   });
 
-  /**
-   * Calculates progress percentage for stat boxes
-   * @param {number} value - Current value
-   * @param {number} total - Total possible value
-   * @returns {number} - Progress percentage between 0 and 1
-   */
   const calculateProgress = (value, total) => {
-    if (total === 0) return 0; // Prevent division by zero
-    return Math.min(Math.max(value / total, 0), 1).toFixed(2); // Clamp between 0-1
+    if (total === 0) return 0;
+    return Math.min(Math.max(value / total, 0), 1).toFixed(2);
   };
 
-  // Fetch transaction statistics from Supabase database
   useEffect(() => {
     const fetchTransactionStats = async () => {
       try {
-        setLoading(prev => ({ ...prev, stats: true })); // Set loading state to true
+        setLoading(prev => ({ ...prev, stats: true }));
         
-        // Get total count of all transactions
         const { count: totalCount, error: totalError } = await supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true });
           
         if (totalError) throw totalError;
         
-        // Get count of legitimate transactions
         const { count: legitCount, error: legitError } = await supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true })
@@ -78,7 +64,6 @@ const Dashboard = () => {
           
         if (legitError) throw legitError;
         
-        // Get count of flagged transactions
         const { count: flaggedCount, error: flaggedError } = await supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true })
@@ -86,7 +71,6 @@ const Dashboard = () => {
           
         if (flaggedError) throw flaggedError;
         
-        // Get count of blocked transactions
         const { count: blockedCount, error: blockedError } = await supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true })
@@ -94,11 +78,9 @@ const Dashboard = () => {
           
         if (blockedError) throw blockedError;
 
-        // Calculate growth percentages by comparing with previous period
         const oneMonthAgo = new Date();
         oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
         
-        // Get count of transactions from previous period
         const { count: prevTotal, error: prevTotalError } = await supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true })
@@ -106,25 +88,17 @@ const Dashboard = () => {
           
         if (prevTotalError) throw prevTotalError;
         
-        /**
-         * Calculates growth percentage between current and previous values
-         * @param {number} current - Current period value
-         * @param {number} previous - Previous period value
-         * @returns {string} - Formatted growth percentage with +/-
-         */
         const calculateGrowth = (current, previous) => {
           if (!previous) return "+0%";
           const growth = ((current - previous) / previous) * 100;
           return growth > 0 ? `+${growth.toFixed(0)}%` : `${growth.toFixed(0)}%`;
         };
         
-        // Calculate growth percentages for different transaction types
         const totalGrowth = calculateGrowth(totalCount, prevTotal);
-        const legitGrowth = calculateGrowth(legitCount, prevTotal * 0.9); // Estimated previous legit
-        const flaggedGrowth = calculateGrowth(flaggedCount, prevTotal * 0.09); // Estimated previous flagged
-        const blockedGrowth = calculateGrowth(blockedCount, prevTotal * 0.01); // Estimated previous blocked
+        const legitGrowth = calculateGrowth(legitCount, prevTotal * 0.9);
+        const flaggedGrowth = calculateGrowth(flaggedCount, prevTotal * 0.09);
+        const blockedGrowth = calculateGrowth(blockedCount, prevTotal * 0.01);
         
-        // Update state with fetched data
         setTransactionStats({
           total: totalCount || 0,
           legit: legitCount || 0,
@@ -136,33 +110,28 @@ const Dashboard = () => {
           blockedGrowth
         });
         
-        // Also update yearly total for the line chart
         setYearlyTotal(totalCount || 0);
       } catch (error) {
         console.error("Error fetching transaction stats:", error);
       } finally {
-        setLoading(prev => ({ ...prev, stats: false })); // Set loading state to false
+        setLoading(prev => ({ ...prev, stats: false }));
       }
     };
 
     fetchTransactionStats();
-  }, []); // Empty dependency array means this runs once on component mount
+  }, []);
 
-  // Fetch recent transactions from Supabase
   useEffect(() => {
     const fetchRecentTransactions = async () => {
       try {
         setLoading(prev => ({ ...prev, recent: true }));
         
-        // Debug: Check total transaction count
-        const { count, error: countError } = await supabase
+        const { error: countError } = await supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true });
           
         if (countError) throw countError;
-        console.log(`Total transactions in database: ${count}`);
         
-        // Fetch the 10 most recent transactions
         const { data, error } = await supabase
           .from('transactions')
           .select('*')
@@ -170,9 +139,7 @@ const Dashboard = () => {
           .limit(10);
           
         if (error) throw error;
-        console.log("Fetched transactions:", data);
         
-        // Transform data to match expected format
         const formattedTransactions = data.map(tx => ({
           txId: tx.id || tx.transaction_id,
           user: tx.user_id || tx.user || "User",
@@ -181,11 +148,10 @@ const Dashboard = () => {
           status: tx.status
         }));
         
-        console.log("Formatted transactions:", formattedTransactions);
         setRecentTransactions(formattedTransactions);
       } catch (error) {
         console.error("Error fetching recent transactions:", error);
-        setRecentTransactions([]); // Set empty array on error
+        setRecentTransactions([]);
       } finally {
         setLoading(prev => ({ ...prev, recent: false }));
       }
@@ -194,13 +160,11 @@ const Dashboard = () => {
     fetchRecentTransactions();
   }, []);
 
-  // Fetch data for charts from Supabase
   useEffect(() => {
     const fetchChartData = async () => {
       try {
         setLoading(prev => ({ ...prev, charts: true }));
         
-        // Fetch monthly transaction data for current year
         const currentYear = new Date().getFullYear();
         const startOfYear = new Date(currentYear, 0, 1).toISOString();
         const endOfYear = new Date(currentYear, 11, 31).toISOString();
@@ -213,14 +177,12 @@ const Dashboard = () => {
           
         if (monthlyError) throw monthlyError;
         
-        // Process monthly data into totals per month
-        const monthlyTotals = Array(12).fill(0); // Initialize array for 12 months
+        const monthlyTotals = Array(12).fill(0);
         monthlyData?.forEach(tx => {
           const month = new Date(tx.created_at).getMonth();
           monthlyTotals[month] += tx.amount || 0;
         });
         
-        // Format monthly data for bar chart
         const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         const formattedMonthlyData = monthlyTotals.map((total, index) => ({
           month: monthNames[index],
@@ -229,7 +191,6 @@ const Dashboard = () => {
         
         setMonthlyData(formattedMonthlyData);
         
-        // Fetch geographic transaction data
         const { data: geoData, error: geoError } = await supabase
           .from('transactions')
           .select('location, amount')
@@ -237,7 +198,6 @@ const Dashboard = () => {
           
         if (geoError) throw geoError;
         
-        // Process geographic data into counts by location
         const geoMap = {};
         geoData?.forEach(tx => {
           if (!tx.location) return;
@@ -247,7 +207,6 @@ const Dashboard = () => {
           geoMap[tx.location] += 1;
         });
         
-        // Format geographic data for map chart
         const formattedGeoData = Object.entries(geoMap).map(([id, value]) => ({
           id,
           value
@@ -265,18 +224,22 @@ const Dashboard = () => {
     fetchChartData();
   }, []);
 
-  /**
-   * Handles report download action
-   */
   const handleDownloadReport = () => {
     console.log("Downloading report...");
-    alert("Report download started!"); // Placeholder for actual download functionality
+    alert("Report download started!");
+  };
+
+  // Responsive grid column spans
+  const getGridColumnSpan = (defaultSpan, smallSpan, mediumSpan) => {
+    if (isSmallScreen) return smallSpan;
+    if (isMediumScreen) return mediumSpan;
+    return defaultSpan;
   };
 
   return (
-    <Box m="20px">
+    <Box m={isSmallScreen ? "10px" : "20px"}>
       {/* HEADER SECTION */}
-      <Box display="flex" justifyContent="space-between" alignItems="center">
+      <Box display="flex" flexDirection={isSmallScreen ? "column" : "row"} justifyContent="space-between" alignItems="center" gap={isSmallScreen ? "10px" : 0}>
         <Header title="DASHBOARD" subtitle="Welcome to your dashboard" />
         <Box>
           <Button
@@ -288,6 +251,7 @@ const Dashboard = () => {
               padding: "10px 20px",
             }}
             onClick={handleDownloadReport}
+            fullWidth={isSmallScreen}
           >
             <DownloadOutlinedIcon sx={{ mr: "10px" }} />
             Download Reports
@@ -298,18 +262,23 @@ const Dashboard = () => {
       {/* GRID & CHARTS SECTION */}
       <Box
         display="grid"
-        gridTemplateColumns="repeat(12, 1fr)"
-        gridAutoRows="140px"
-        gap="20px"
+        gridTemplateColumns={`repeat(${isSmallScreen ? 4 : 12}, 1fr)`}
+        gridAutoRows={isSmallScreen ? "auto" : "140px"}
+        gap={isSmallScreen ? "10px" : "20px"}
+        sx={{
+          '& > div': {
+            minHeight: isSmallScreen ? 'auto' : '140px'
+          }
+        }}
       >
         {/* ROW 1: STAT BOXES */}
-        {/* Total Transactions Stat Box */}
         <Box
-          gridColumn="span 3"
+          gridColumn={`span ${getGridColumnSpan(3, 4, 6)}`}
           backgroundColor={colors.primary[400]}
           display="flex"
           alignItems="center"
           justifyContent="center"
+          p={isSmallScreen ? "10px" : 0}
         >
           <StatBox
             title={loading.stats ? "Loading..." : transactionStats.total.toLocaleString()}
@@ -321,16 +290,17 @@ const Dashboard = () => {
                 sx={{ color: colors.greenAccent[600], fontSize: "26px" }}
               />
             }
+            isSmallScreen={isSmallScreen}
           />
         </Box>
 
-        {/* Legit Transactions Stat Box */}
         <Box
-          gridColumn="span 3"
+          gridColumn={`span ${getGridColumnSpan(3, 4, 6)}`}
           backgroundColor={colors.primary[400]}
           display="flex"
           alignItems="center"
           justifyContent="center"
+          p={isSmallScreen ? "10px" : 0}
         >
           <StatBox
             title={loading.stats ? "Loading..." : transactionStats.legit.toLocaleString()}
@@ -342,16 +312,17 @@ const Dashboard = () => {
                 sx={{ color: colors.greenAccent[600], fontSize: "26px" }}
               />
             }
+            isSmallScreen={isSmallScreen}
           />
         </Box>
 
-        {/* Flagged Transactions Stat Box */}
         <Box
-          gridColumn="span 3"
+          gridColumn={`span ${getGridColumnSpan(3, 4, 6)}`}
           backgroundColor={colors.primary[400]}
           display="flex"
           alignItems="center"
           justifyContent="center"
+          p={isSmallScreen ? "10px" : 0}
         >
           <StatBox
             title={loading.stats ? "Loading..." : transactionStats.flagged.toLocaleString()}
@@ -363,16 +334,17 @@ const Dashboard = () => {
                 sx={{ color: colors.greenAccent[600], fontSize: "26px" }}
               />
             }
+            isSmallScreen={isSmallScreen}
           />
         </Box>
 
-        {/* Blocked Transactions Stat Box */}
         <Box
-          gridColumn="span 3"
+          gridColumn={`span ${getGridColumnSpan(3, 4, 6)}`}
           backgroundColor={colors.primary[400]}
           display="flex"
           alignItems="center"
           justifyContent="center"
+          p={isSmallScreen ? "10px" : 0}
         >
           <StatBox
             title={loading.stats ? "Loading..." : transactionStats.blocked.toLocaleString()}
@@ -384,33 +356,36 @@ const Dashboard = () => {
                 sx={{ color: colors.greenAccent[600], fontSize: "26px" }}
               />
             }
+            isSmallScreen={isSmallScreen}
           />
         </Box>
 
         {/* ROW 2: LINE CHART AND RECENT TRANSACTIONS */}
-        {/* Line Chart showing yearly transactions */}
         <Box
-          gridColumn="span 8"
-          gridRow="span 2"
+          gridColumn={`span ${getGridColumnSpan(8, 4, 8)}`}
+          gridRow={`span ${isSmallScreen ? 1 : 2}`}
           backgroundColor={colors.primary[400]}
+          p={isSmallScreen ? "10px" : 0}
         >
           <Box
-            mt="25px"
-            p="0 30px"
-            display="flex "
+            mt={isSmallScreen ? "10px" : "25px"}
+            p={isSmallScreen ? "0 10px" : "0 30px"}
+            display="flex"
+            flexDirection={isSmallScreen ? "column" : "row"}
             justifyContent="space-between"
-            alignItems="center"
+            alignItems={isSmallScreen ? "flex-start" : "center"}
+            gap={isSmallScreen ? "10px" : 0}
           >
             <Box>
               <Typography
-                variant="h5"
+                variant={isSmallScreen ? "h6" : "h5"}
                 fontWeight="600"
                 color={colors.grey[100]}
               >
                 Total Transactions Per Year
               </Typography>
               <Typography
-                variant="h3"
+                variant={isSmallScreen ? "h4" : "h3"}
                 fontWeight="bold"
                 color={colors.greenAccent[500]}
               >
@@ -425,17 +400,17 @@ const Dashboard = () => {
               </IconButton>
             </Box>
           </Box>
-          <Box height="250px" m="-20px 0 0 0">
+          <Box height={isSmallScreen ? "200px" : "250px"} m={isSmallScreen ? "0" : "-20px 0 0 0"}>
             <LineChart isDashboard={true} />
           </Box>
         </Box>
 
-        {/* Recent Transactions List */}
         <Box
-          gridColumn="span 4"
-          gridRow="span 2"
+          gridColumn={`span ${getGridColumnSpan(4, 4, 4)}`}
+          gridRow={`span ${isSmallScreen ? 1 : 2}`}
           backgroundColor={colors.primary[400]}
           overflow="auto"
+          p={isSmallScreen ? "10px" : 0}
         >
           <Box
             display="flex"
@@ -443,23 +418,21 @@ const Dashboard = () => {
             alignItems="center"
             borderBottom={`4px solid ${colors.primary[500]}`}
             colors={colors.grey[100]}
-            p="15px"
+            p={isSmallScreen ? "10px" : "15px"}
           >
-            <Typography color={colors.grey[100]} variant="h5" fontWeight="600">
+            <Typography color={colors.grey[100]} variant={isSmallScreen ? "h6" : "h5"} fontWeight="600">
               Recent Transactions
             </Typography>
           </Box>
-          {/* Loading state for recent transactions */}
           {loading.recent ? (
-            <Box p="15px">
+            <Box p={isSmallScreen ? "10px" : "15px"}>
               <Typography color={colors.grey[100]}>Loading recent transactions...</Typography>
             </Box>
           ) : recentTransactions.length === 0 ? (
-            <Box p="15px">
+            <Box p={isSmallScreen ? "10px" : "15px"}>
               <Typography color={colors.grey[100]}>No recent transactions found.</Typography>
             </Box>
           ) : (
-            // Display list of recent transactions
             recentTransactions.map((transaction, i) => (
               <Box
                 key={`${transaction.txId}-${i}`}
@@ -467,25 +440,37 @@ const Dashboard = () => {
                 justifyContent="space-between"
                 alignItems="center"
                 borderBottom={`4px solid ${colors.primary[500]}`}
-                p="15px"
+                p={isSmallScreen ? "10px" : "15px"}
+                sx={{
+                  flexDirection: isSmallScreen ? "column" : "row",
+                  alignItems: isSmallScreen ? "flex-start" : "center",
+                  gap: isSmallScreen ? "5px" : 0
+                }}
               >
                 <Box>
                   <Typography
                     color={colors.greenAccent[500]}
-                    variant="h5"
+                    variant={isSmallScreen ? "body1" : "h5"}
                     fontWeight="600"
                   >
                     {transaction.txId}
                   </Typography>
-                  <Typography color={colors.grey[100]}>
+                  <Typography color={colors.grey[100]} variant={isSmallScreen ? "body2" : "body1"}>
                     {transaction.user}
                   </Typography>
                 </Box>
-                <Box color={colors.grey[100]}>{transaction.date}</Box>
+                <Box color={colors.grey[100]} variant={isSmallScreen ? "body2" : "body1"}>
+                  {transaction.date}
+                </Box>
                 <Box
                   backgroundColor={colors.greenAccent[500]}
                   p="5px 10px"
                   borderRadius="4px"
+                  sx={{
+                    width: isSmallScreen ? "100%" : "auto",
+                    textAlign: isSmallScreen ? "center" : "left",
+                    mt: isSmallScreen ? "5px" : 0
+                  }}
                 >
                   Tshs.{transaction.cost}
                 </Box>
@@ -495,72 +480,72 @@ const Dashboard = () => {
         </Box>
 
         {/* ROW 3: PROGRESS CIRCLE, BAR CHART AND GEOGRAPHY CHART */}
-        {/* Transactions Summary with Progress Circle */}
         <Box
-          gridColumn="span 4"
-          gridRow="span 2"
+          gridColumn={`span ${getGridColumnSpan(4, 4, 6)}`}
+          gridRow={`span ${isSmallScreen ? 1 : 2}`}
           backgroundColor={colors.primary[400]}
-          p="30px"
+          p={isSmallScreen ? "10px" : "30px"}
         >
-          <Typography variant="h5" fontWeight="600">
+          <Typography variant={isSmallScreen ? "h6" : "h5"} fontWeight="600">
             Transactions Summary
           </Typography>
           <Box
             display="flex"
             flexDirection="column"
             alignItems="center"
-            mt="25px"
+            mt={isSmallScreen ? "10px" : "25px"}
           >
             <ProgressCircle 
-              size="125" 
+              size={isSmallScreen ? "80" : "125"} 
               progress={loading.stats ? 0 : transactionStats.legit / transactionStats.total} 
             />
             <Typography
-              variant="h5"
+              variant={isSmallScreen ? "body1" : "h5"}
               color={colors.greenAccent[500]}
-              sx={{ mt: "15px" }}
+              sx={{ mt: "15px", textAlign: "center" }}
             >
               {loading.stats 
                 ? "Loading..." 
                 : `${transactionStats.legit.toLocaleString()} Legit Transactions in a Year`}
             </Typography>
-            <Typography>Includes Legit Transactions</Typography>
+            <Typography variant={isSmallScreen ? "body2" : "body1"} align="center">
+              Includes Legit Transactions
+            </Typography>
           </Box>
         </Box>
 
-        {/* Monthly Transactions Bar Chart */}
         <Box
-          gridColumn="span 4"
-          gridRow="span 2"
+          gridColumn={`span ${getGridColumnSpan(4, 4, 6)}`}
+          gridRow={`span ${isSmallScreen ? 1 : 2}`}
           backgroundColor={colors.primary[400]}
+          p={isSmallScreen ? "10px" : 0}
         >
           <Typography
-            variant="h5"
+            variant={isSmallScreen ? "h6" : "h5"}
             fontWeight="600"
-            sx={{ padding: "30px 30px 0 30px" }}
+            sx={{ padding: isSmallScreen ? "10px 10px 0 10px" : "30px 30px 0 30px" }}
           >
             Monthly Transactions
           </Typography>
-          <Box height="250px" mt="-20px">
+          <Box height={isSmallScreen ? "200px" : "250px"} mt={isSmallScreen ? "0" : "-20px"}>
             <BarChart isDashboard={true} data={monthlyData} />
           </Box>
         </Box>
 
-        {/* Geography Based Traffic Map */}
         <Box
-          gridColumn="span 4"
-          gridRow="span 2"
+          gridColumn={`span ${getGridColumnSpan(4, 4, 12)}`}
+          gridRow={`span ${isSmallScreen ? 1 : 2}`}
           backgroundColor={colors.primary[400]}
-          padding="30px"
+          p={isSmallScreen ? "10px" : "30px"}
         >
           <Typography
-            variant="h5"
+            variant={isSmallScreen ? "h6" : "h5"}
             fontWeight="600"
             sx={{ marginBottom: "15px" }}
           >
             Geography Based Traffic
           </Typography>
-          <Box height="200px">
+          <Box height={isSmallScreen ? "200px" : "200px"}>
             <GeographyChart isDashboard={true} data={geoData} />
           </Box>
         </Box>
