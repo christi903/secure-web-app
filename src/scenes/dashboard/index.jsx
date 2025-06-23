@@ -269,7 +269,7 @@ const Dashboard = () => {
     <Box m="20px">
       {/* HEADER SECTION */}
       <Box display="flex" justifyContent="space-between" alignItems="center">
-        <Header title="DASHBOARD" subtitle="Welcome to your dashboard" />
+        <Header title="SECURE DASHBOARD" subtitle="Welcome to your Secure Website Application" />
       </Box>
 
       {/* GRID & CHARTS SECTION */}
