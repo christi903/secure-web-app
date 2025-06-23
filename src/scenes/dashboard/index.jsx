@@ -5,7 +5,7 @@ import BarChart from "../../components/BarChart"; // Component for bar chart vis
 import GeographyChart from "../../components/GeographyChart"; // Component for geographic map visualization
 import StatBox from "../../components/StatBox"; // Component for displaying statistics
 import ProgressCircle from "../../components/ProgressCircle"; // Component for circular progress indicator
-import { Box, Button, IconButton, Typography, useTheme } from "@mui/material"; // Material UI components
+import { Box, IconButton, Typography, useTheme } from "@mui/material"; // Material UI components
 import { tokens } from "../../theme"; // Theme colors configuration
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined"; // Download icon from Material Icons
 import VerifiedIcon from '@mui/icons-material/Verified'; // Verified transaction icon
@@ -265,34 +265,11 @@ const Dashboard = () => {
     fetchChartData();
   }, []);
 
-  /**
-   * Handles report download action
-   */
-  const handleDownloadReport = () => {
-    console.log("Downloading report...");
-    alert("Report download started!"); // Placeholder for actual download functionality
-  };
-
   return (
     <Box m="20px">
       {/* HEADER SECTION */}
       <Box display="flex" justifyContent="space-between" alignItems="center">
-        <Header title="DASHBOARD" subtitle="Welcome to your dashboard" />
-        <Box>
-          <Button
-            sx={{
-              backgroundColor: colors.blueAccent[700],
-              color: colors.grey[100],
-              fontSize: "14px",
-              fontWeight: "bold",
-              padding: "10px 20px",
-            }}
-            onClick={handleDownloadReport}
-          >
-            <DownloadOutlinedIcon sx={{ mr: "10px" }} />
-            Download Reports
-          </Button>
-        </Box>
+        <Header title=" SECURE DASHBOARD" subtitle="Welcome to secure website application" />
       </Box>
 
       {/* GRID & CHARTS SECTION */}
@@ -418,7 +395,7 @@ const Dashboard = () => {
               </Typography>
             </Box>
             <Box>
-              <IconButton onClick={handleDownloadReport}>
+              <IconButton>
                 <DownloadOutlinedIcon
                   sx={{ fontSize: "26px", color: colors.greenAccent[500] }}
                 />
