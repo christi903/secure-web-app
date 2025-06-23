@@ -4,15 +4,6 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import Papa from 'papaparse';
 
-const STATUS_CONFIG = {
-  BLOCKED: { label: 'Blocked', color: 'error' },
-  LEGIT: { label: 'Legit', color: 'success' },
-  FLAGGED: { label: 'Flagged', color: 'warning' },
-  COMPLETED: { label: 'Completed', color: 'success' },
-  PENDING: { label: 'Pending', color: 'warning' },
-  FAILED: { label: 'Failed', color: 'error' },
-  CONFIRMED: { label: 'Confirmed', color: 'info' }
-};
 
 export const useTransactionData = () => {
   // State declarations
