@@ -4,7 +4,6 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import Papa from 'papaparse';
 
-
 export const useTransactionData = () => {
   // State declarations
   const [open, setOpen] = useState(false);
@@ -42,15 +41,15 @@ export const useTransactionData = () => {
       WITHDRAWAL: 'Withdrawal',
       DEPOSIT: 'Deposit'
     };
-    const action = actions[transaction.transaction_type] || 'Transaction';
-    return `${action} from ${transaction.initiator_id} to ${transaction.recipient_id}`;
+    const action = actions[transaction.transactiontype] || 'Transaction';
+    return `${action} from ${transaction.initiator} to ${transaction.recipient}`;
   }, []);
 
   /**
    * Formats a raw transaction object into a display-friendly format
    */
   const formatTransaction = useCallback((transaction) => ({
-    id: transaction.id,
+    id: transaction.transactionid,
     date: new Date(transaction.transaction_time).toLocaleString('en-US', {
       year: 'numeric',
       month: 'short',
@@ -58,16 +57,16 @@ export const useTransactionData = () => {
       hour: '2-digit',
       minute: '2-digit'
     }),
-    transactionId: `TRX-${transaction.id.toString().slice(0, 8).toUpperCase()}`,
-    type: transaction.transaction_type,
+    transactionId: `TRX-${transaction.transactionid.toString().slice(0, 8).toUpperCase()}`,
+    type: transaction.transactiontype,
     amount: transaction.amount,
     status: transaction.status || 'PENDING',
     description: transaction.description || generateDescription(transaction),
-    sender: transaction.sender_phone || `+255${Math.floor(100000000 + Math.random() * 900000000)}`,
-    receiver: transaction.recipient_phone || `+255${Math.floor(100000000 + Math.random() * 900000000)}`,
-    is_fraud: transaction.is_fraud,
+    sender: transaction.initiator,
+    receiver: transaction.recipient,
+    is_fraud: transaction.fraud_probability > 0.7,
     fraud_probability: transaction.fraud_probability,
-    fraud_alert_severity: transaction.fraud_alert_severity
+    fraud_alert_severity: transaction.fraud_probability > 0.7 ? 'high' : transaction.fraud_probability > 0.4 ? 'medium' : 'low'
   }), [generateDescription]);
 
   /**
@@ -83,10 +82,10 @@ export const useTransactionData = () => {
         .order('transaction_time', { ascending: false });
 
       if (filters.search) {
-        query = query.or(`description.ilike.%${filters.search}%,initiator_id.ilike.%${filters.search}%,recipient_id.ilike.%${filters.search}%`);
+        query = query.or(`initiator.ilike.%${filters.search}%,recipient.ilike.%${filters.search}%`);
       }
       if (filters.type) {
-        query = query.eq('transaction_type', filters.type);
+        query = query.eq('transactiontype', filters.type);
       }
       if (filters.status) {
         query = query.eq('status', filters.status);
@@ -98,7 +97,7 @@ export const useTransactionData = () => {
         query = query.lte('amount', filters.maxAmount);
       }
       if (filters.fraudOnly) {
-        query = query.eq('is_fraud', true);
+        query = query.gt('fraud_probability', 0.7);
       }
 
       const { data, count, error } = await query

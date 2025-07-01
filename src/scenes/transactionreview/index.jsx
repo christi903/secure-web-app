@@ -1,311 +1,462 @@
-import { Box, useTheme, Button, Menu, MenuItem, TextField, InputAdornment } from "@mui/material"; // Material UI components
-import { DataGrid, GridToolbar } from "@mui/x-data-grid"; // Data table components
-import { tokens } from "../../theme"; // Theme colors
-import Header from "../../components/Header"; // Custom header
-import CheckCircleIcon from '@mui/icons-material/CheckCircle'; // Check icon
-import CancelIcon from '@mui/icons-material/Cancel'; // Cancel icon
-import FilterListIcon from '@mui/icons-material/FilterList'; // Filter icon
-import { useState } from "react"; // React state hook
+import { useEffect, useState, useCallback } from "react";
+import { DataGrid } from "@mui/x-data-grid";
+import {
+  Box,
+  Button,
+  Select,
+  MenuItem,
+  Typography,
+  TextField,
+  CircularProgress,
+  Alert,
+  Snackbar,
+  IconButton
+} from "@mui/material";
+import { supabase } from '../../supabaseClient';
+import CloseIcon from '@mui/icons-material/Close';
 
-const TransactionReview = () => {
-  const theme = useTheme(); // Access MUI theme
-  const colors = tokens(theme.palette.mode); // Get theme colors
-  const [anchorEl, setAnchorEl] = useState(null); // Filter menu anchor
-  const [filters, setFilters] = useState({ // Filter values
-    account: '',
-    initialStatus: '',
-    currentStatus: '',
-    reviewedBy: '',
-    minAmount: '',
-    maxAmount: ''
+export default function TransactionReview() {
+  const [transactions, setTransactions] = useState([]);
+  const [editedRows, setEditedRows] = useState({});
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'info'
   });
 
-  // Mock data for reviewed transactions
-  const transactionRows = [
-    {
-      id: 1,
-      account: "0784-123456",
-      amount: 50000,
-      date: "2025-04-01",
-      initialStatus: "Flagged", // Initial status
-      currentStatus: "Legit", // Reviewed status
-      reviewedBy: "Officer Feruzy", // Reviewer name
-      reviewDate: "2025-04-02" // Review date
-    },
-    // ... other transactions
-  ];
+  const showSnackbar = useCallback((message, severity) => {
+    setSnackbar({
+      open: true,
+      message,
+      severity
+    });
+  }, []);
 
-  // DataGrid columns configuration
+  const fetchUser = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data?.user) {
+        throw error || new Error("No user found");
+      }
+      
+      // Check if user exists in users table, if not create them
+      const { data: existingUser, error: userCheckError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("id", data.user.id)
+        .single();
+
+      if (userCheckError && userCheckError.code === 'PGRST116') {
+        // User doesn't exist, create them
+        const { error: insertError } = await supabase
+          .from("users")
+          .insert({
+            id: data.user.id,
+            email: data.user.email,
+            first_name: data.user.user_metadata?.first_name || '',
+            last_name: data.user.user_metadata?.last_name || '',
+            created_at: new Date().toISOString()
+          });
+
+        if (insertError) {
+          console.error("Error creating user:", insertError);
+          throw new Error("Failed to create user record");
+        }
+      } else if (userCheckError) {
+        throw userCheckError;
+      }
+      
+      setCurrentUserId(data.user.id);
+      setCurrentUserEmail(data.user.email);
+    } catch (err) {
+      console.error("Auth error:", err);
+      setError("Failed to authenticate user");
+      showSnackbar("Failed to authenticate user", 'error');
+    }
+  }, [showSnackbar]);
+
+  const fetchTransactions = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("*")
+        .order("timestamp", { ascending: false });
+
+      if (error) {
+        console.error("Supabase error:", error);
+        throw error;
+      }
+      
+      console.log("Fetched transactions:", data); // Debug log
+      setTransactions(data || []);
+      
+      if (!data || data.length === 0) {
+        showSnackbar("No transactions found", 'info');
+      }
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setError(`Failed to load transactions: ${err.message}`);
+      showSnackbar(`Failed to load transactions: ${err.message}`, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [showSnackbar]);
+
+  useEffect(() => {
+    const initializeData = async () => {
+      await fetchUser();
+      await fetchTransactions();
+    };
+    initializeData();
+  }, [fetchUser, fetchTransactions]);
+
+  const handleStatusChange = (id, newStatus) => {
+    const transaction = transactions.find(t => t.transactionid === id);
+    if (!transaction) {
+      console.warn(`Transaction with ID ${id} not found`);
+      return;
+    }
+
+    setEditedRows(prev => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        new_status: newStatus,
+        previous_status: transaction.status || ""
+      }
+    }));
+  };
+
+  const handleNotesChange = (id, newNotes) => {
+    setEditedRows(prev => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        notes: newNotes
+      }
+    }));
+  };
+
+  const handleSave = async (id) => {
+    try {
+      const changes = editedRows[id];
+      if (!changes || !currentUserId) {
+        showSnackbar("No changes to save or user not authenticated", 'warning');
+        return;
+      }
+
+      // 1. Update transaction status
+      const { error: updateError } = await supabase
+        .from("transactions")
+        .update({ status: changes.new_status })
+        .eq("transactionid", id);
+
+      if (updateError) {
+        console.error("Update error:", updateError);
+        throw updateError;
+      }
+
+      // 2. Insert into transaction_reviews
+      // First, let's try to find the user in the users table by email
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("email", currentUserEmail)
+        .single();
+
+      let reviewerUserId;
+      if (userError && userError.code === 'PGRST116') {
+        // User not found, create them first
+        const { data: newUser, error: createError } = await supabase
+          .from("users")
+          .insert({
+            id: currentUserId,
+            email: currentUserEmail,
+            first_name: '',
+            last_name: '',
+            created_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          console.error("Create user error:", createError);
+          throw createError;
+        }
+        reviewerUserId = newUser.id;
+      } else if (userError) {
+        throw userError;
+      } else {
+        reviewerUserId = userData.id;
+      }
+
+      const { error: insertError } = await supabase
+        .from("transaction_reviews")
+        .insert({
+          transaction_id: id,
+          reviewed_by_user_id: reviewerUserId,
+          previous_status: changes.previous_status,
+          new_status: changes.new_status,
+          notes: changes.notes || "",
+          reviewed_at: new Date().toISOString()
+        });
+
+      if (insertError) {
+        console.error("Insert error:", insertError);
+        throw insertError;
+      }
+
+      showSnackbar("Changes saved successfully", 'success');
+      await fetchTransactions();
+      
+      // Clear the edited row
+      setEditedRows(prev => {
+        const updated = { ...prev };
+        delete updated[id];
+        return updated;
+      });
+    } catch (err) {
+      console.error("Save error:", err);
+      showSnackbar(`Failed to save changes: ${err.message}`, 'error');
+    }
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar(prev => ({ ...prev, open: false }));
+  };
+
   const columns = [
-    { field: "id", headerName: "ID", width: 70 }, // ID column
-    { field: "account", headerName: "Account", flex: 1 }, // Account column
-    { field: "amount", headerName: "Amount (TZS)", flex: 1, type: "number" }, // Amount column
-    { field: "date", headerName: "Trans-Date", flex: 1 }, // Date column
-    {
-      field: "initialStatus",
-      headerName: "Before Rev", // Before review status
+    { 
+      field: "transactionid", 
+      headerName: "ID", 
       flex: 1,
-      cellClassName: (params) => `status-${params.value.toLowerCase()}` // Dynamic class
+      minWidth: 120,
+      renderCell: (params) => {
+        return params.row?.transactionid || 'N/A';
+      }
+    },
+    { 
+      field: "initiator", 
+      headerName: "From", 
+      flex: 1,
+      minWidth: 150,
+      renderCell: (params) => {
+        return params.row?.initiator || 'N/A';
+      }
+    },
+    { 
+      field: "recipient", 
+      headerName: "To", 
+      flex: 1,
+      minWidth: 150,
+      renderCell: (params) => {
+        return params.row?.recipient || 'N/A';
+      }
+    },
+    { 
+      field: "amount", 
+      headerName: "Amount", 
+      flex: 0.8,
+      minWidth: 100,
+      renderCell: (params) => {
+        const amount = params.row?.amount;
+        return amount != null ? amount.toString() : 'N/A';
+      }
+    },
+    { 
+      field: "transactiontype", 
+      headerName: "Type", 
+      flex: 0.8,
+      minWidth: 120,
+      renderCell: (params) => {
+        return params.row?.transactiontype || 'N/A';
+      }
     },
     {
-      field: "currentStatus",
-      headerName: "Review", // Review status
+      field: "status", 
+      headerName: "Status", 
       flex: 1,
-      renderCell: (params) => { // Custom rendering
+      minWidth: 150,
+      renderCell: (params) => {
+        const row = params.row;
+        if (!row || !row.transactionid) return 'N/A';
+        
         return (
-          <Box
-            width="100%"
-            display="flex"
-            justifyContent="center"
-            alignItems="center"
+          <Select
+            size="small"
+            value={editedRows[row.transactionid]?.new_status || row.status || ''}
+            onChange={(e) => handleStatusChange(row.transactionid, e.target.value)}
+            fullWidth
+            sx={{ minHeight: '32px' }}
           >
-            {params.value === "Legit" ? ( // Show checkmark for legit
-              <CheckCircleIcon style={{ color: "#4caf50", fontSize: '28px' }} />
-            ) : ( // Show cancel for fraudulent
-              <CancelIcon style={{ color: "#f44336", fontSize: '28px' }} />
-            )}
-          </Box>
+            <MenuItem value="legitimate">Legitimate</MenuItem>
+            <MenuItem value="flagged">Flagged</MenuItem>
+            <MenuItem value="blocked">Blocked</MenuItem>
+          </Select>
         );
       }
     },
-    { field: "reviewedBy", headerName: "Reviewer", flex: 1 }, // Reviewer column
-    { field: "reviewDate", headerName: "Date", flex: 1 } // Review date column
+    {
+      field: "fraud_probability", 
+      headerName: "Fraud Probability", 
+      flex: 0.8,
+      minWidth: 140,
+      renderCell: (params) => {
+        const probability = params.row?.fraud_probability;
+        return probability != null ? `${(probability * 100).toFixed(1)}%` : 'N/A';
+      }
+    },
+    {
+      field: "notes", 
+      headerName: "Review Notes", 
+      flex: 1.5,
+      minWidth: 200,
+      renderCell: (params) => {
+        const row = params.row;
+        if (!row || !row.transactionid) return null;
+        
+        return (
+          <TextField
+            size="small"
+            fullWidth
+            placeholder="Optional notes"
+            value={editedRows[row.transactionid]?.notes || ""}
+            onChange={(e) => handleNotesChange(row.transactionid, e.target.value)}
+            sx={{ minHeight: '32px' }}
+          />
+        );
+      }
+    },
+    {
+      field: "action", 
+      headerName: "Action", 
+      flex: 0.6,
+      minWidth: 100,
+      sortable: false,
+      renderCell: (params) => {
+        const row = params.row;
+        if (!row || !row.transactionid) return null;
+        
+        const hasChanges = editedRows[row.transactionid];
+        
+        return (
+          <Button
+            variant="contained"
+            size="small"
+            disabled={!hasChanges}
+            onClick={() => handleSave(row.transactionid)}
+            sx={{ 
+              minWidth: '80px',
+              opacity: hasChanges ? 1 : 0.5
+            }}
+          >
+            Save
+          </Button>
+        );
+      }
+    }
   ];
 
-  // Filter menu handlers
-  const handleFilterClick = (event) => {
-    setAnchorEl(event.currentTarget); // Open filter menu
-  };
-
-  const handleFilterClose = () => {
-    setAnchorEl(null); // Close filter menu
-  };
-
-  const handleFilterChange = (field) => (event) => {
-    setFilters({ ...filters, [field]: event.target.value }); // Update filter state
-  };
-
-  // Clear all filters
-  const clearFilters = () => {
-    setFilters({
-      account: '',
-      initialStatus: '',
-      currentStatus: '',
-      reviewedBy: '',
-      minAmount: '',
-      maxAmount: ''
-    });
-  };
-
-  // Apply filters to rows
-  const filteredRows = transactionRows.filter(row => {
+  if (loading) {
     return (
-      (filters.account === '' || row.account.includes(filters.account)) &&
-      (filters.initialStatus === '' || row.initialStatus === filters.initialStatus) &&
-      (filters.currentStatus === '' || row.currentStatus === filters.currentStatus) &&
-      (filters.reviewedBy === '' || row.reviewedBy.includes(filters.reviewedBy)) &&
-      (filters.minAmount === '' || row.amount >= Number(filters.minAmount)) &&
-      (filters.maxAmount === '' || row.amount <= Number(filters.maxAmount))
+      <Box p={3}>
+        <Typography variant="h5" gutterBottom>
+          Transaction Review
+        </Typography>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+          <CircularProgress />
+        </Box>
+      </Box>
     );
-  });
+  }
 
   return (
-    <Box m="20px">
-      {/* Page header */}
-      <Header
-        title="SUSPICIOUS TRANSACTIONS REVIEW"
-        subtitle="Review flagged and blocked transactions"
-      />
-      <Box display="flex" justifyContent="flex-end" mb={2}>
-        {/* Filter button */}
-        <Button
-          variant="contained"
-          color="secondary"
-          startIcon={<FilterListIcon />}
-          onClick={handleFilterClick}
-          sx={{
-            backgroundColor: colors.blueAccent[600],
-            '&:hover': {
-              backgroundColor: colors.blueAccent[700]
-            }
-          }}
-        >
-          Filters
-        </Button>
-        {/* Filter menu */}
-        <Menu
-          anchorEl={anchorEl}
-          open={Boolean(anchorEl)}
-          onClose={handleFilterClose}
-          PaperProps={{
-            style: {
-              width: 300,
-              padding: '16px',
-              backgroundColor: colors.primary[400]
-            }
-          }}
-        >
-          {/* Account filter */}
-          <TextField
-            label="Account Number"
-            value={filters.account}
-            onChange={handleFilterChange('account')}
-            fullWidth
-            margin="normal"
-            variant="outlined"
-          />
-          {/* Initial status filter */}
-          <TextField
-            label="Initial Status"
-            value={filters.initialStatus}
-            onChange={handleFilterChange('initialStatus')}
-            fullWidth
-            margin="normal"
-            variant="outlined"
-            select
-          >
-            <MenuItem value="">All</MenuItem>
-            <MenuItem value="Flagged">Flagged</MenuItem>
-            <MenuItem value="Blocked">Blocked</MenuItem>
-          </TextField>
-          {/* Current status filter */}
-          <TextField
-            label="Current Status"
-            value={filters.currentStatus}
-            onChange={handleFilterChange('currentStatus')}
-            fullWidth
-            margin="normal"
-            variant="outlined"
-            select
-          >
-            <MenuItem value="">All</MenuItem>
-            <MenuItem value="Legit">Legit</MenuItem>
-            <MenuItem value="Fraudulent">Fraudulent</MenuItem>
-          </TextField>
-          {/* Reviewed by filter */}
-          <TextField
-            label="Reviewed By"
-            value={filters.reviewedBy}
-            onChange={handleFilterChange('reviewedBy')}
-            fullWidth
-            margin="normal"
-            variant="outlined"
-          />
-          {/* Amount range filters */}
-          <Box display="flex" gap={2} mt={2}>
-            <TextField
-              label="Min Amount"
-              value={filters.minAmount}
-              onChange={handleFilterChange('minAmount')}
-              fullWidth
-              margin="normal"
-              variant="outlined"
-              type="number"
-              InputProps={{
-                startAdornment: <InputAdornment position="start">TZS</InputAdornment>,
-              }}
-            />
-            <TextField
-              label="Max Amount"
-              value={filters.maxAmount}
-              onChange={handleFilterChange('maxAmount')}
-              fullWidth
-              margin="normal"
-              variant="outlined"
-              type="number"
-              InputProps={{
-                startAdornment: <InputAdornment position="start">TZS</InputAdornment>,
-              }}
-            />
-          </Box>
-          {/* Filter actions */}
-          <Box display="flex" justifyContent="space-between" mt={2}>
-            <Button 
-              variant="outlined" 
-              onClick={clearFilters}
-              sx={{ color: colors.grey[100] }}
-            >
-              Clear
-            </Button>
-            <Button 
-              variant="contained" 
-              onClick={handleFilterClose}
-              sx={{ backgroundColor: colors.blueAccent[600] }}
-            >
-              Apply
-            </Button>
-          </Box>
-        </Menu>
-      </Box>
-      {/* DataGrid showing reviewed transactions */}
-      <Box
-        m="40px 0 0 0"
-        height="75vh"
-        sx={{
-          "& .MuiDataGrid-root": { border: "none" }, // Remove borders
-          "& .MuiDataGrid-cell": { borderBottom: "none" }, // Remove cell borders
-          "& .status-blocked": { // Styling for blocked status
-            color: colors.blueAccent[600],
-            fontWeight: "bold",
-            backgroundColor: theme.palette.mode === "dark" ? "#1a1a2e" : "#f5f5ff"
-          },
-          "& .status-flagged": { // Styling for flagged status
-            color: colors.grey[500],
-            fontWeight: "bold",
-            backgroundColor: theme.palette.mode === "dark" ? "#1a1a2e" : "#f5f5ff"
-          },
-          "& .status-legit": { // Styling for legit status
-            color: colors.greenAccent[500],
-            backgroundColor: theme.palette.mode === "dark" ? "#1a2e1a" : "#f5fff5"
-          },
-          '& .MuiDataGrid-columnHeaders': { // Column header styling
-            backgroundColor: colors.blueAccent[700],
-            color: colors.grey[100],
-            fontSize: '16px',
-          },
-          '& .MuiDataGrid-columnHeaderTitle': {
-            fontWeight: 'bold', // Bold headers
-          },
-          '& .MuiDataGrid-columnHeader': {
-            backgroundColor: colors.blueAccent[700],
-            '&:focus, &:focus-within': {
-              outline: 'none !important', // Remove focus outline
-            },
-          },
-          "& .MuiDataGrid-virtualScroller": {
-            backgroundColor: colors.primary[400] // Background color
-          },
-          "& .MuiDataGrid-footerContainer": {
-            borderTop: "none", // Remove footer border
-            backgroundColor: colors.blueAccent[700] // Footer background
-          },
-          "& .MuiCheckbox-root": {
-            color: `${colors.greenAccent[200]} !important` // Checkbox color
-          }
-        }}
-      >
+    <Box p={3}>
+      <Typography variant="h5" gutterBottom>
+        Transaction Review
+      </Typography>
+      
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      {transactions.length === 0 ? (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          No transactions found. Make sure your database contains transaction data.
+        </Alert>
+      ) : (
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Found {transactions.length} transaction(s)
+        </Typography>
+      )}
+
+      <div style={{ height: 600, width: "100%" }}>
         <DataGrid
-          rows={filteredRows} // Filtered data
-          columns={columns} // Column configuration
-          components={{ Toolbar: GridToolbar }} // Add toolbar
-          checkboxSelection // Enable row selection
+          rows={transactions}
+          getRowId={(row) => {
+            // Ensure we have a valid ID
+            if (row && row.transactionid) {
+              return row.transactionid;
+            }
+            console.warn("Row missing transactionid:", row);
+            return `temp-${Math.random()}`;
+          }}
+          columns={columns}
+          pageSize={10}
+          rowsPerPageOptions={[5, 10, 25]}
+          disableSelectionOnClick
+          autoHeight={false}
+          loading={loading}
+          error={error}
           sx={{
-            "& .MuiDataGrid-toolbarContainer .MuiButton-text": {
-              color: `${colors.grey[100]} !important` // Toolbar button color
+            '& .MuiDataGrid-cell': {
+              display: 'flex',
+              alignItems: 'center',
             },
-            "& .MuiDataGrid-columnHeaderTitle": {
-              fontWeight: "bold" // Bold column headers
-            },
-            "& .MuiDataGrid-columnHeader, & .MuiDataGrid-cell": {
-              "&:focus, &:focus-within": {
-                outline: "none !important" // Remove focus outline
-              }
+            '& .MuiDataGrid-row': {
+              minHeight: '60px !important',
             }
           }}
+          initialState={{
+            pagination: {
+              paginationModel: { pageSize: 10 },
+            },
+          }}
+          pageSizeOptions={[5, 10, 25]}
         />
-      </Box>
+      </div>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          severity={snackbar.severity}
+          action={
+            <IconButton
+              size="small"
+              aria-label="close"
+              color="inherit"
+              onClick={handleCloseSnackbar}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          }
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
-};
-
-export default TransactionReview;
+}
