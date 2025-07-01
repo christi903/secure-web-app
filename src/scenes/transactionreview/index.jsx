@@ -10,7 +10,9 @@ import {
   CircularProgress,
   Alert,
   Snackbar,
-  IconButton
+  IconButton,
+  Paper,
+  Chip
 } from "@mui/material";
 import { supabase } from '../../supabaseClient';
 import CloseIcon from '@mui/icons-material/Close';
@@ -43,16 +45,16 @@ export default function TransactionReview() {
         throw error || new Error("No user found");
       }
       
-      // Check if user exists in users table, if not create them
+      // Check if user exists in users table by email
       const { data: existingUser, error: userCheckError } = await supabase
         .from("users")
-        .select("id")
-        .eq("id", data.user.id)
+        .select("id, email")
+        .eq("email", data.user.email)
         .single();
 
       if (userCheckError && userCheckError.code === 'PGRST116') {
         // User doesn't exist, create them
-        const { error: insertError } = await supabase
+        const { data: newUser, error: insertError } = await supabase
           .from("users")
           .insert({
             id: data.user.id,
@@ -60,18 +62,21 @@ export default function TransactionReview() {
             first_name: data.user.user_metadata?.first_name || '',
             last_name: data.user.user_metadata?.last_name || '',
             created_at: new Date().toISOString()
-          });
+          })
+          .select(); // Return the inserted row
 
-        if (insertError) {
+        if (insertError || !newUser) {
           console.error("Error creating user:", insertError);
           throw new Error("Failed to create user record");
         }
+        setCurrentUserId(newUser[0].id);
+        setCurrentUserEmail(newUser[0].email);
       } else if (userCheckError) {
         throw userCheckError;
+      } else {
+        setCurrentUserId(existingUser.id);
+        setCurrentUserEmail(existingUser.email);
       }
-      
-      setCurrentUserId(data.user.id);
-      setCurrentUserEmail(data.user.email);
     } catch (err) {
       console.error("Auth error:", err);
       setError("Failed to authenticate user");
@@ -94,7 +99,7 @@ export default function TransactionReview() {
         throw error;
       }
       
-      console.log("Fetched transactions:", data); // Debug log
+      console.log("Fetched transactions:", data);
       setTransactions(data || []);
       
       if (!data || data.length === 0) {
@@ -147,63 +152,32 @@ export default function TransactionReview() {
   const handleSave = async (id) => {
     try {
       const changes = editedRows[id];
-      if (!changes || !currentUserId) {
+      if (!changes || !currentUserId) { // Use currentUserId instead of email
         showSnackbar("No changes to save or user not authenticated", 'warning');
         return;
       }
 
-      // 1. Update transaction status
-      const { error: updateError } = await supabase
-        .from("transactions")
-        .update({ status: changes.new_status })
-        .eq("transactionid", id);
+      // Only update status if it has changed
+      if (changes.new_status && changes.new_status !== changes.previous_status) {
+        const { error: updateError } = await supabase
+          .from("transactions")
+          .update({ status: changes.new_status })
+          .eq("transactionid", id);
 
-      if (updateError) {
-        console.error("Update error:", updateError);
-        throw updateError;
-      }
-
-      // 2. Insert into transaction_reviews
-      // First, let's try to find the user in the users table by email
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("id")
-        .eq("email", currentUserEmail)
-        .single();
-
-      let reviewerUserId;
-      if (userError && userError.code === 'PGRST116') {
-        // User not found, create them first
-        const { data: newUser, error: createError } = await supabase
-          .from("users")
-          .insert({
-            id: currentUserId,
-            email: currentUserEmail,
-            first_name: '',
-            last_name: '',
-            created_at: new Date().toISOString()
-          })
-          .select()
-          .single();
-
-        if (createError) {
-          console.error("Create user error:", createError);
-          throw createError;
+        if (updateError) {
+          console.error("Update error:", updateError);
+          throw updateError;
         }
-        reviewerUserId = newUser.id;
-      } else if (userError) {
-        throw userError;
-      } else {
-        reviewerUserId = userData.id;
       }
 
+      // Insert into transaction_reviews - using user ID as foreign key
       const { error: insertError } = await supabase
         .from("transaction_reviews")
         .insert({
           transaction_id: id,
-          reviewed_by_user_id: reviewerUserId,
-          previous_status: changes.previous_status,
-          new_status: changes.new_status,
+          reviewed_by_user_id: currentUserId, // Use ID instead of email
+          previous_status: changes.previous_status || "",
+          new_status: changes.new_status || changes.previous_status || "",
           notes: changes.notes || "",
           reviewed_at: new Date().toISOString()
         });
@@ -213,7 +187,7 @@ export default function TransactionReview() {
         throw insertError;
       }
 
-      showSnackbar("Changes saved successfully", 'success');
+      showSnackbar("Review saved successfully", 'success');
       await fetchTransactions();
       
       // Clear the edited row
@@ -224,7 +198,7 @@ export default function TransactionReview() {
       });
     } catch (err) {
       console.error("Save error:", err);
-      showSnackbar(`Failed to save changes: ${err.message}`, 'error');
+      showSnackbar(`Failed to save review: ${err.message}`, 'error');
     }
   };
 
@@ -232,14 +206,34 @@ export default function TransactionReview() {
     setSnackbar(prev => ({ ...prev, open: false }));
   };
 
+  const getStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'legitimate': return 'success';
+      case 'flagged': return 'warning';
+      case 'blocked': return 'error';
+      default: return 'default';
+    }
+  };
+
+  const getFraudProbabilityColor = (probability) => {
+    if (probability >= 0.7) return 'error';
+    if (probability >= 0.4) return 'warning';
+    return 'success';
+  };
+
   const columns = [
     { 
       field: "transactionid", 
-      headerName: "ID", 
+      headerName: "Transaction ID", 
       flex: 1,
-      minWidth: 120,
+      minWidth: 140,
       renderCell: (params) => {
-        return params.row?.transactionid || 'N/A';
+        const id = params.row?.transactionid;
+        return (
+          <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+            {id ? `${id.toString().slice(0, 8)}...` : 'N/A'}
+          </Typography>
+        );
       }
     },
     { 
@@ -248,7 +242,11 @@ export default function TransactionReview() {
       flex: 1,
       minWidth: 150,
       renderCell: (params) => {
-        return params.row?.initiator || 'N/A';
+        return (
+          <Typography variant="body2" noWrap>
+            {params.row?.initiator || 'N/A'}
+          </Typography>
+        );
       }
     },
     { 
@@ -257,17 +255,25 @@ export default function TransactionReview() {
       flex: 1,
       minWidth: 150,
       renderCell: (params) => {
-        return params.row?.recipient || 'N/A';
+        return (
+          <Typography variant="body2" noWrap>
+            {params.row?.recipient || 'N/A'}
+          </Typography>
+        );
       }
     },
     { 
       field: "amount", 
       headerName: "Amount", 
       flex: 0.8,
-      minWidth: 100,
+      minWidth: 120,
       renderCell: (params) => {
         const amount = params.row?.amount;
-        return amount != null ? amount.toString() : 'N/A';
+        return (
+          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+            {amount != null ? `$${parseFloat(amount).toLocaleString()}` : 'N/A'}
+          </Typography>
+        );
       }
     },
     { 
@@ -276,7 +282,13 @@ export default function TransactionReview() {
       flex: 0.8,
       minWidth: 120,
       renderCell: (params) => {
-        return params.row?.transactiontype || 'N/A';
+        return (
+          <Chip 
+            label={params.row?.transactiontype || 'N/A'} 
+            size="small" 
+            variant="outlined"
+          />
+        );
       }
     },
     {
@@ -288,29 +300,53 @@ export default function TransactionReview() {
         const row = params.row;
         if (!row || !row.transactionid) return 'N/A';
         
+        const currentStatus = editedRows[row.transactionid]?.new_status || row.status || '';
+        
         return (
-          <Select
-            size="small"
-            value={editedRows[row.transactionid]?.new_status || row.status || ''}
-            onChange={(e) => handleStatusChange(row.transactionid, e.target.value)}
-            fullWidth
-            sx={{ minHeight: '32px' }}
-          >
-            <MenuItem value="legitimate">Legitimate</MenuItem>
-            <MenuItem value="flagged">Flagged</MenuItem>
-            <MenuItem value="blocked">Blocked</MenuItem>
-          </Select>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+            <Select
+              size="small"
+              value={currentStatus}
+              onChange={(e) => handleStatusChange(row.transactionid, e.target.value)}
+              sx={ { 
+                minWidth: '120px',
+                '& .MuiSelect-select': {
+                  py: 0.5
+                }
+              }}
+            >
+              <MenuItem value="legitimate">
+                <Chip label="Legitimate" color="success" size="small" />
+              </MenuItem>
+              <MenuItem value="flagged">
+                <Chip label="Flagged" color="warning" size="small" />
+              </MenuItem>
+              <MenuItem value="blocked">
+                <Chip label="Blocked" color="error" size="small" />
+              </MenuItem>
+            </Select>
+          </Box>
         );
       }
     },
     {
       field: "fraud_probability", 
-      headerName: "Fraud Probability", 
+      headerName: "Fraud Risk", 
       flex: 0.8,
-      minWidth: 140,
+      minWidth: 120,
       renderCell: (params) => {
         const probability = params.row?.fraud_probability;
-        return probability != null ? `${(probability * 100).toFixed(1)}%` : 'N/A';
+        if (probability == null) return 'N/A';
+        
+        const percentage = (probability * 100).toFixed(1);
+        return (
+          <Chip 
+            label={`${percentage}%`} 
+            color={getFraudProbabilityColor(probability)}
+            size="small"
+            variant="filled"
+          />
+        );
       }
     },
     {
@@ -326,10 +362,15 @@ export default function TransactionReview() {
           <TextField
             size="small"
             fullWidth
-            placeholder="Optional notes"
+            placeholder="Add review notes..."
             value={editedRows[row.transactionid]?.notes || ""}
             onChange={(e) => handleNotesChange(row.transactionid, e.target.value)}
-            sx={{ minHeight: '32px' }}
+            variant="outlined"
+            sx={{ 
+              '& .MuiOutlinedInput-root': {
+                height: '36px'
+              }
+            }}
           />
         );
       }
@@ -354,7 +395,7 @@ export default function TransactionReview() {
             onClick={() => handleSave(row.transactionid)}
             sx={{ 
               minWidth: '80px',
-              opacity: hasChanges ? 1 : 0.5
+              height: '32px'
             }}
           >
             Save
@@ -367,21 +408,27 @@ export default function TransactionReview() {
   if (loading) {
     return (
       <Box p={3}>
-        <Typography variant="h5" gutterBottom>
+        <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', mb: 3 }}>
           Transaction Review
         </Typography>
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-          <CircularProgress />
+          <CircularProgress size={60} />
         </Box>
       </Box>
     );
   }
 
   return (
-    <Box p={3}>
-      <Typography variant="h5" gutterBottom>
-        Transaction Review
-      </Typography>
+    <Box p={3} sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
+      <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+          Transaction Review Dashboard
+        </Typography>
+        
+        <Typography variant="body1" color="text.secondary">
+          Review and update transaction statuses based on fraud analysis
+        </Typography>
+      </Paper>
       
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -389,21 +436,31 @@ export default function TransactionReview() {
         </Alert>
       )}
 
-      {transactions.length === 0 ? (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          No transactions found. Make sure your database contains transaction data.
-        </Alert>
-      ) : (
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Found {transactions.length} transaction(s)
-        </Typography>
-      )}
+      <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
+        {transactions.length === 0 ? (
+          <Alert severity="info">
+            No transactions found. Make sure your database contains transaction data.
+          </Alert>
+        ) : (
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6" color="text.primary">
+              Total Transactions: {transactions.length}
+            </Typography>
+            <Button 
+              variant="outlined" 
+              onClick={fetchTransactions}
+              disabled={loading}
+            >
+              Refresh Data
+            </Button>
+          </Box>
+        )}
+      </Paper>
 
-      <div style={{ height: 600, width: "100%" }}>
+      <Paper elevation={1} sx={{ height: 650, width: "100%", overflow: 'hidden' }}>
         <DataGrid
           rows={transactions}
           getRowId={(row) => {
-            // Ensure we have a valid ID
             if (row && row.transactionid) {
               return row.transactionid;
             }
@@ -411,29 +468,36 @@ export default function TransactionReview() {
             return `temp-${Math.random()}`;
           }}
           columns={columns}
-          pageSize={10}
-          rowsPerPageOptions={[5, 10, 25]}
-          disableSelectionOnClick
-          autoHeight={false}
-          loading={loading}
-          error={error}
-          sx={{
-            '& .MuiDataGrid-cell': {
-              display: 'flex',
-              alignItems: 'center',
-            },
-            '& .MuiDataGrid-row': {
-              minHeight: '60px !important',
-            }
-          }}
           initialState={{
             pagination: {
               paginationModel: { pageSize: 10 },
             },
           }}
-          pageSizeOptions={[5, 10, 25]}
+          pageSizeOptions={[5, 10, 25, 50]}
+          disableSelectionOnClick
+          loading={loading}
+          sx={{
+            '& .MuiDataGrid-cell': {
+              display: 'flex',
+              alignItems: 'center',
+              borderRight: '1px solid #f0f0f0',
+            },
+            '& .MuiDataGrid-row': {
+              minHeight: '60px !important',
+              '&:hover': {
+                backgroundColor: 'action.hover',
+              }
+            },
+            '& .MuiDataGrid-columnHeaders': {
+              backgroundColor: 'grey.50',
+              fontWeight: 'bold',
+            },
+            '& .MuiDataGrid-columnHeaderTitle': {
+              fontWeight: 'bold',
+            }
+          }}
         />
-      </div>
+      </Paper>
 
       <Snackbar
         open={snackbar.open}
@@ -453,6 +517,7 @@ export default function TransactionReview() {
               <CloseIcon fontSize="small" />
             </IconButton>
           }
+          sx={{ width: '100%' }}
         >
           {snackbar.message}
         </Alert>

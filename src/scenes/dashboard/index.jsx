@@ -24,11 +24,7 @@ const Dashboard = () => {
     total: 0, // Total number of transactions
     legit: 0, // Number of legitimate transactions
     flagged: 0, // Number of flagged transactions
-    blocked: 0, // Number of blocked transactions
-    totalGrowth: "+0%", // Percentage growth of total transactions
-    legitGrowth: "+0%", // Percentage growth of legitimate transactions
-    flaggedGrowth: "+0%", // Percentage growth of flagged transactions
-    blockedGrowth: "+0%" // Percentage growth of blocked transactions
+    blocked: 0 // Number of blocked transactions
   });
 
   // State for recent transactions data
@@ -74,7 +70,7 @@ const Dashboard = () => {
         const { count: legitCount, error: legitError } = await supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true })
-          .eq('status', 'LEGITIMATE');
+          .eq('status', 'legitimate');
           
         if (legitError) throw legitError;
         
@@ -82,7 +78,7 @@ const Dashboard = () => {
         const { count: flaggedCount, error: flaggedError } = await supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true })
-          .eq('status', 'FLAGGED');
+          .eq('status', 'flagged');
           
         if (flaggedError) throw flaggedError;
         
@@ -90,50 +86,16 @@ const Dashboard = () => {
         const { count: blockedCount, error: blockedError } = await supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true })
-          .eq('status', 'BLOCKED');
+          .eq('status', 'blocked');
           
         if (blockedError) throw blockedError;
 
-        // Calculate growth percentages by comparing with previous period
-        const oneMonthAgo = new Date();
-        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-        
-        // Get count of transactions from previous period
-        const { count: prevTotal, error: prevTotalError } = await supabase
-          .from('transactions')
-          .select('*', { count: 'exact', head: true })
-          .lt('created_at', oneMonthAgo.toISOString());
-          
-        if (prevTotalError) throw prevTotalError;
-        
-        /**
-         * Calculates growth percentage between current and previous values
-         * @param {number} current - Current period value
-         * @param {number} previous - Previous period value
-         * @returns {string} - Formatted growth percentage with +/-
-         */
-        const calculateGrowth = (current, previous) => {
-          if (!previous) return "+0%";
-          const growth = ((current - previous) / previous) * 100;
-          return growth > 0 ? `+${growth.toFixed(0)}%` : `${growth.toFixed(0)}%`;
-        };
-        
-        // Calculate growth percentages for different transaction types
-        const totalGrowth = calculateGrowth(totalCount, prevTotal);
-        const legitGrowth = calculateGrowth(legitCount, prevTotal * 0.9); // Estimated previous legit
-        const flaggedGrowth = calculateGrowth(flaggedCount, prevTotal * 0.09); // Estimated previous flagged
-        const blockedGrowth = calculateGrowth(blockedCount, prevTotal * 0.01); // Estimated previous blocked
-        
         // Update state with fetched data
         setTransactionStats({
           total: totalCount || 0,
           legit: legitCount || 0,
           flagged: flaggedCount || 0,
-          blocked: blockedCount || 0,
-          totalGrowth,
-          legitGrowth,
-          flaggedGrowth,
-          blockedGrowth
+          blocked: blockedCount || 0
         });
         
         // Also update yearly total for the line chart
@@ -162,23 +124,24 @@ const Dashboard = () => {
         if (countError) throw countError;
         console.log(`Total transactions in database: ${count}`);
         
-        // Fetch the 10 most recent transactions
+        // Fetch the 10 most recent transactions using correct field names
         const { data, error } = await supabase
           .from('transactions')
-          .select('*')
-          .order('created_at', { ascending: false })
+          .select('transactionid, initiator, recipient, amount, transactiontype, status, timestamp')
+          .order('timestamp', { ascending: false })
           .limit(10);
           
         if (error) throw error;
         console.log("Fetched transactions:", data);
         
-        // Transform data to match expected format
+        // Transform data to match expected format using correct field names
         const formattedTransactions = data.map(tx => ({
-          txId: tx.id || tx.transaction_id,
-          user: tx.user_id || tx.user || "User",
-          date: tx.created_at ? new Date(tx.created_at).toLocaleDateString() : new Date().toLocaleDateString(),
+          txId: tx.transactionid || "N/A",
+          user: tx.initiator || tx.recipient || "Unknown User",
+          date: tx.timestamp ? new Date(tx.timestamp).toLocaleDateString() : new Date().toLocaleDateString(),
           cost: tx.amount ? tx.amount.toFixed(2) : "0.00",
-          status: tx.status
+          status: tx.status || "UNKNOWN",
+          type: tx.transactiontype || "N/A"
         }));
         
         console.log("Formatted transactions:", formattedTransactions);
@@ -200,23 +163,23 @@ const Dashboard = () => {
       try {
         setLoading(prev => ({ ...prev, charts: true }));
         
-        // Fetch monthly transaction data for current year
+        // Fetch monthly transaction data for current year using timestamp field
         const currentYear = new Date().getFullYear();
         const startOfYear = new Date(currentYear, 0, 1).toISOString();
         const endOfYear = new Date(currentYear, 11, 31).toISOString();
         
         const { data: monthlyData, error: monthlyError } = await supabase
           .from('transactions')
-          .select('created_at, amount')
-          .gte('created_at', startOfYear)
-          .lte('created_at', endOfYear);
+          .select('timestamp, amount')
+          .gte('timestamp', startOfYear)
+          .lte('timestamp', endOfYear);
           
         if (monthlyError) throw monthlyError;
         
         // Process monthly data into totals per month
         const monthlyTotals = Array(12).fill(0); // Initialize array for 12 months
         monthlyData?.forEach(tx => {
-          const month = new Date(tx.created_at).getMonth();
+          const month = new Date(tx.timestamp).getMonth();
           monthlyTotals[month] += tx.amount || 0;
         });
         
@@ -229,22 +192,24 @@ const Dashboard = () => {
         
         setMonthlyData(formattedMonthlyData);
         
-        // Fetch geographic transaction data
-        const { data: geoData, error: geoError } = await supabase
+        // Since there's no location field in your schema, we'll create geographic data based on initiator/recipient
+        // You might want to modify this based on your actual geographic data needs
+        const { data: userData, error: userError } = await supabase
           .from('transactions')
-          .select('location, amount')
-          .not('location', 'is', null);
+          .select('initiator, recipient, amount')
+          .limit(1000); // Limit for performance
           
-        if (geoError) throw geoError;
+        if (userError) throw userError;
         
-        // Process geographic data into counts by location
+        // Process user data into geographic regions (this is a placeholder - adjust based on your needs)
         const geoMap = {};
-        geoData?.forEach(tx => {
-          if (!tx.location) return;
-          if (!geoMap[tx.location]) {
-            geoMap[tx.location] = 0;
+        userData?.forEach(tx => {
+          // Example: Extract region from initiator/recipient (you'll need to implement proper location mapping)
+          const region = tx.initiator ? tx.initiator.substring(0, 3).toUpperCase() : 'UNK';
+          if (!geoMap[region]) {
+            geoMap[region] = 0;
           }
-          geoMap[tx.location] += 1;
+          geoMap[region] += 1;
         });
         
         // Format geographic data for map chart
@@ -292,7 +257,6 @@ const Dashboard = () => {
             title={loading.stats ? "Loading..." : transactionStats.total.toLocaleString()}
             subtitle="Total Transactions"
             progress={calculateProgress(transactionStats.total, transactionStats.total)}
-            increase={transactionStats.totalGrowth}
             icon={
               <PaidIcon
                 sx={{ color: colors.greenAccent[600], fontSize: "26px" }}
@@ -313,7 +277,6 @@ const Dashboard = () => {
             title={loading.stats ? "Loading..." : transactionStats.legit.toLocaleString()}
             subtitle="Legit Transactions"
             progress={calculateProgress(transactionStats.legit, transactionStats.total)}
-            increase={transactionStats.legitGrowth}
             icon={
               <VerifiedIcon
                 sx={{ color: colors.greenAccent[600], fontSize: "26px" }}
@@ -334,7 +297,6 @@ const Dashboard = () => {
             title={loading.stats ? "Loading..." : transactionStats.flagged.toLocaleString()}
             subtitle="Flagged Transactions"
             progress={calculateProgress(transactionStats.flagged, transactionStats.total)}
-            increase={transactionStats.flaggedGrowth}
             icon={
               <FlagCircleIcon
                 sx={{ color: colors.greenAccent[600], fontSize: "26px" }}
@@ -355,7 +317,6 @@ const Dashboard = () => {
             title={loading.stats ? "Loading..." : transactionStats.blocked.toLocaleString()}
             subtitle="Blocked Transactions"
             progress={calculateProgress(transactionStats.blocked, transactionStats.total)}
-            increase={transactionStats.blockedGrowth}
             icon={
               <BlockIcon
                 sx={{ color: colors.greenAccent[600], fontSize: "26px" }}
@@ -456,6 +417,13 @@ const Dashboard = () => {
                   </Typography>
                   <Typography color={colors.grey[100]}>
                     {transaction.user}
+                  </Typography>
+                  <Typography 
+                    color={colors.grey[200]} 
+                    variant="body2"
+                    sx={{ fontSize: "0.75rem" }}
+                  >
+                    {transaction.status}
                   </Typography>
                 </Box>
                 <Box color={colors.grey[100]}>{transaction.date}</Box>
