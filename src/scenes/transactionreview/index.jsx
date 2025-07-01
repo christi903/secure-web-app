@@ -21,6 +21,7 @@ export default function TransactionReview() {
   const [transactions, setTransactions] = useState([]);
   const [editedRows, setEditedRows] = useState({});
   const [currentUserId, setCurrentUserId] = useState(null);
+  // eslint-disable-next-line no-unused-vars
   const [currentUserEmail, setCurrentUserEmail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -206,6 +207,7 @@ export default function TransactionReview() {
     setSnackbar(prev => ({ ...prev, open: false }));
   };
 
+  // eslint-disable-next-line no-unused-vars
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
       case 'legitimate': return 'success';
