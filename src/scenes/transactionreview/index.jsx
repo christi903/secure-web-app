@@ -381,12 +381,17 @@ export default function TransactionReview() {
 
   return (
     <Box p={3} sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
-      <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+      <Paper elevation={2} sx={{ 
+        p: 3, 
+        mb: 3,
+        background: 'linear-gradient(to right, #141b2d, #1F2A40)',
+        color: 'white'
+      }}>
+        <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold' }}>
           Transaction Review Dashboard
         </Typography>
         
-        <Typography variant="body1" color="text.secondary">
+        <Typography variant="body1">
           Review and update transaction statuses
         </Typography>
       </Paper>
@@ -397,20 +402,26 @@ export default function TransactionReview() {
         </Alert>
       )}
 
-      <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
+      <Paper elevation={1} sx={{ 
+        p: 2, 
+        mb: 2,
+        background: 'linear-gradient(to right, #141b2d, #1F2A40)',
+        color: 'white'
+      }}>
         {transactions.length === 0 ? (
           <Alert severity="info">
             No transactions found. Make sure your database contains transaction data.
           </Alert>
         ) : (
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="h6" color="text.primary">
+            <Typography variant="h6">
               Total Transactions: {transactions.length}
             </Typography>
             <Button 
               variant="outlined" 
               onClick={fetchTransactions}
               disabled={loading}
+              sx={{ color: 'white', borderColor: 'white' }}
             >
               Refresh Data
             </Button>
@@ -450,11 +461,11 @@ export default function TransactionReview() {
               }
             },
             '& .MuiDataGrid-columnHeaders': {
-              backgroundColor: '#1E90FF !important',
+              backgroundColor: '#141b2d !important',
               color: 'white !important',
             },
             '& .MuiDataGrid-columnHeader': {
-              backgroundColor: '#1E90FF !important',
+              backgroundColor: '#141b2d !important',
               color: 'white !important',
             },
             '& .MuiDataGrid-columnHeaderTitle': {
