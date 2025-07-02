@@ -252,7 +252,7 @@ export default function TransactionReview() {
         const amount = params.row?.amount;
         return (
           <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-            {amount != null ? `TZS ${parseFloat(amount).toLocaleString('en-TZ', { style: 'currency', currency: 'TZS' })}` : 'N/A'}
+            {amount != null ? `TZS ${parseFloat(amount).toLocaleString('en-TZ')}` : 'N/A'}
           </Typography>
         );
       }
