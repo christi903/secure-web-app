@@ -70,7 +70,7 @@ const Dashboard = () => {
         const { count: legitCount, error: legitError } = await supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true })
-          .eq('status', 'legitimate');
+          .eq('status', 'legit');
           
         if (legitError) throw legitError;
         
