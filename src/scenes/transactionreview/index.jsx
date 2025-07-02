@@ -46,7 +46,6 @@ export default function TransactionReview() {
         throw error || new Error("No user found");
       }
       
-      // Check if user exists in users table by email
       const { data: existingUser, error: userCheckError } = await supabase
         .from("users")
         .select("id, email")
@@ -54,7 +53,6 @@ export default function TransactionReview() {
         .single();
 
       if (userCheckError && userCheckError.code === 'PGRST116') {
-        // User doesn't exist, create them
         const { data: newUser, error: insertError } = await supabase
           .from("users")
           .insert({
@@ -64,7 +62,7 @@ export default function TransactionReview() {
             last_name: data.user.user_metadata?.last_name || '',
             created_at: new Date().toISOString()
           })
-          .select(); // Return the inserted row
+          .select();
 
         if (insertError || !newUser) {
           console.error("Error creating user:", insertError);
@@ -153,12 +151,11 @@ export default function TransactionReview() {
   const handleSave = async (id) => {
     try {
       const changes = editedRows[id];
-      if (!changes || !currentUserId) { // Use currentUserId instead of email
+      if (!changes || !currentUserId) {
         showSnackbar("No changes to save or user not authenticated", 'warning');
         return;
       }
 
-      // Only update status if it has changed
       if (changes.new_status && changes.new_status !== changes.previous_status) {
         const { error: updateError } = await supabase
           .from("transactions")
@@ -171,12 +168,11 @@ export default function TransactionReview() {
         }
       }
 
-      // Insert into transaction_reviews - using user ID as foreign key
       const { error: insertError } = await supabase
         .from("transaction_reviews")
         .insert({
           transaction_id: id,
-          reviewed_by_user_id: currentUserId, // Use ID instead of email
+          reviewed_by_user_id: currentUserId,
           previous_status: changes.previous_status || "",
           new_status: changes.new_status || changes.previous_status || "",
           notes: changes.notes || "",
@@ -191,7 +187,6 @@ export default function TransactionReview() {
       showSnackbar("Review saved successfully", 'success');
       await fetchTransactions();
       
-      // Clear the edited row
       setEditedRows(prev => {
         const updated = { ...prev };
         delete updated[id];
@@ -205,22 +200,6 @@ export default function TransactionReview() {
 
   const handleCloseSnackbar = () => {
     setSnackbar(prev => ({ ...prev, open: false }));
-  };
-
-  // eslint-disable-next-line no-unused-vars
-  const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'legitimate': return 'success';
-      case 'flagged': return 'warning';
-      case 'blocked': return 'error';
-      default: return 'default';
-    }
-  };
-
-  const getFraudProbabilityColor = (probability) => {
-    if (probability >= 0.7) return 'error';
-    if (probability >= 0.4) return 'warning';
-    return 'success';
   };
 
   const columns = [
@@ -273,7 +252,7 @@ export default function TransactionReview() {
         const amount = params.row?.amount;
         return (
           <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-            {amount != null ? `$${parseFloat(amount).toLocaleString()}` : 'N/A'}
+            {amount != null ? `TZS ${parseFloat(amount).toLocaleString('en-TZ', { style: 'currency', currency: 'TZS' })}` : 'N/A'}
           </Typography>
         );
       }
@@ -328,26 +307,6 @@ export default function TransactionReview() {
               </MenuItem>
             </Select>
           </Box>
-        );
-      }
-    },
-    {
-      field: "fraud_probability", 
-      headerName: "Fraud Risk", 
-      flex: 0.8,
-      minWidth: 120,
-      renderCell: (params) => {
-        const probability = params.row?.fraud_probability;
-        if (probability == null) return 'N/A';
-        
-        const percentage = (probability * 100).toFixed(1);
-        return (
-          <Chip 
-            label={`${percentage}%`} 
-            color={getFraudProbabilityColor(probability)}
-            size="small"
-            variant="filled"
-          />
         );
       }
     },
@@ -428,7 +387,7 @@ export default function TransactionReview() {
         </Typography>
         
         <Typography variant="body1" color="text.secondary">
-          Review and update transaction statuses based on fraud analysis
+          Review and update transaction statuses
         </Typography>
       </Paper>
       
@@ -491,11 +450,16 @@ export default function TransactionReview() {
               }
             },
             '& .MuiDataGrid-columnHeaders': {
-              backgroundColor: 'grey.50',
-              fontWeight: 'bold',
+              backgroundColor: '#1E90FF !important',
+              color: 'white !important',
+            },
+            '& .MuiDataGrid-columnHeader': {
+              backgroundColor: '#1E90FF !important',
+              color: 'white !important',
             },
             '& .MuiDataGrid-columnHeaderTitle': {
               fontWeight: 'bold',
+              color: 'white !important',
             }
           }}
         />
