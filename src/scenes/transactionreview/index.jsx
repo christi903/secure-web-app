@@ -285,6 +285,43 @@ export default function TransactionReview() {
         );
       }
     },
+    { 
+      field: "fraud_probability", 
+      headerName: "Fraud Probability", 
+      flex: 0.8,
+      minWidth: 130,
+      renderCell: (params) => {
+        const probability = params.row?.fraud_probability;
+        
+        if (probability == null) {
+          return (
+            <Typography variant="body2" color="text.secondary">
+              N/A
+            </Typography>
+          );
+        }
+        
+        // Convert to percentage if it's a decimal between 0 and 1
+        const percentValue = probability <= 1 ? probability * 100 : probability;
+        
+        // Determine color based on probability
+        let color = 'success';
+        if (percentValue >= 80) {
+          color = 'error';
+        } else if (percentValue >= 50) {
+          color = 'warning';
+        }
+        
+        return (
+          <Chip 
+            label={`${percentValue.toFixed(1)}%`}
+            size="small" 
+            color={color}
+            variant="filled"
+          />
+        );
+      }
+    },
     {
       field: "status", 
       headerName: "Status", 
