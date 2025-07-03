@@ -128,12 +128,15 @@ export default function TransactionReview() {
       return;
     }
 
+    console.log(`Changing status for transaction ${id} from ${transaction.status} to ${newStatus}`);
+
     setEditedRows(prev => ({
       ...prev,
       [id]: {
         ...prev[id],
-        new_status: newStatus,
-        previous_status: transaction.status || ""
+        status: newStatus, // Changed from new_status to status
+        previous_status: transaction.status || "",
+        hasStatusChange: true
       }
     }));
   };
@@ -156,25 +159,31 @@ export default function TransactionReview() {
         return;
       }
 
-      if (changes.new_status && changes.new_status !== changes.previous_status) {
+      console.log("Saving changes for transaction:", id, changes);
+
+      // Update transaction status if changed
+      if (changes.hasStatusChange && changes.status !== changes.previous_status) {
         const { error: updateError } = await supabase
           .from("transactions")
-          .update({ status: changes.new_status })
+          .update({ status: changes.status })
           .eq("transactionid", id);
 
         if (updateError) {
           console.error("Update error:", updateError);
           throw updateError;
         }
+
+        console.log(`Successfully updated transaction ${id} status to ${changes.status}`);
       }
 
+      // Insert review record
       const { error: insertError } = await supabase
         .from("transaction_reviews")
         .insert({
           transaction_id: id,
           reviewed_by_user_id: currentUserId,
           previous_status: changes.previous_status || "",
-          new_status: changes.new_status || changes.previous_status || "",
+          new_status: changes.status || changes.previous_status || "",
           notes: changes.notes || "",
           reviewed_at: new Date().toISOString()
         });
@@ -185,13 +194,17 @@ export default function TransactionReview() {
       }
 
       showSnackbar("Review saved successfully", 'success');
-      await fetchTransactions();
       
+      // Clear the edited row
       setEditedRows(prev => {
         const updated = { ...prev };
         delete updated[id];
         return updated;
       });
+
+      // Refresh transactions to show updated data
+      await fetchTransactions();
+      
     } catch (err) {
       console.error("Save error:", err);
       showSnackbar(`Failed to save review: ${err.message}`, 'error');
@@ -281,7 +294,10 @@ export default function TransactionReview() {
         const row = params.row;
         if (!row || !row.transactionid) return 'N/A';
         
-        const currentStatus = editedRows[row.transactionid]?.new_status || row.status || '';
+        // Use the edited status if available, otherwise use the original status
+        const currentStatus = editedRows[row.transactionid]?.status || row.status || '';
+        
+        console.log(`Rendering status for ${row.transactionid}: ${currentStatus}`);
         
         return (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
@@ -289,15 +305,15 @@ export default function TransactionReview() {
               size="small"
               value={currentStatus}
               onChange={(e) => handleStatusChange(row.transactionid, e.target.value)}
-              sx={ { 
+              sx={{ 
                 minWidth: '120px',
                 '& .MuiSelect-select': {
                   py: 0.5
                 }
               }}
             >
-              <MenuItem value="legitimate">
-                <Chip label="Legitimate" color="success" size="small" />
+              <MenuItem value="legit">
+                <Chip label="Legit" color="success" size="small" />
               </MenuItem>
               <MenuItem value="flagged">
                 <Chip label="Flagged" color="warning" size="small" />
@@ -346,7 +362,8 @@ export default function TransactionReview() {
         const row = params.row;
         if (!row || !row.transactionid) return null;
         
-        const hasChanges = editedRows[row.transactionid];
+        const hasChanges = editedRows[row.transactionid] && 
+          (editedRows[row.transactionid].hasStatusChange || editedRows[row.transactionid].notes);
         
         return (
           <Button
