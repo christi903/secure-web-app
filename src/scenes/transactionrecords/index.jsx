@@ -225,7 +225,7 @@ const TransactionHistory = () => {
                 }
               }}
             >
-              PDF
+              Excel
             </Button>
             
             {/* Excel Export button */}
@@ -241,7 +241,7 @@ const TransactionHistory = () => {
                 }
               }}
             >
-              Excel
+              CSV
             </Button>
           </Box>
         }
