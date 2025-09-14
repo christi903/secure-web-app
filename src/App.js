@@ -28,6 +28,9 @@ import Bar from './components/BarChart';
 import Pie from './components/PieChart';
 import Line from './components/LineChart';
 import GeographyChart from './components/GeographyChart';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
 
 function App() {
   const [theme, colorMode] = useMode();
