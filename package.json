@@ -28,7 +28,7 @@
     "firebase": "^11.6.0",
     "formik": "^2.4.6",
     "framer-motion": "^12.7.3",
-    "jspdf": "^2.5.2",
+    "jspdf": "^4.1.0",
     "jspdf-autotable": "^3.8.4",
     "papaparse": "^5.5.2",
     "react": "^18.3.1",
